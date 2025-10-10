@@ -15,3 +15,6 @@ dependencies = []
 
 [tool.setuptools]
 packages = ["utils"]
+
+[tool.setuptools.packages.find]
+packages = ["utils*"]

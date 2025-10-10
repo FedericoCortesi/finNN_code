@@ -43,30 +43,20 @@ if __name__ == "__main__":
         'learning_rate': [0.01, 0.001, 0.0001]
     }
 
-    training_dataset, test_dataset =  # TO DO
+    training_dataset, validation_dataset, test_dataset =  # TO DO
 
     for fold in sorted(training_dataset.keys()):
-        
+    
         print(f"\n===== Processing Fold {fold} =====")
         
         df_train = training_dataset[fold]
+        df_val = validation_dataset[fold]
         df_test = test_dataset[fold]
 
-        latest_year = df_train['date'].dt.year.max()
-        inner_val_df = df_train[df_train['date'].dt.year == latest_year]
-        inner_train_df = df_train[df_train['date'].dt.year < latest_year]
-
-        X_inner_train = inner_train_df.drop(['target', 'date'], axis=1).values
-        y_inner_train = inner_train_df['target'].values
-
-        X_inner_val = inner_val_df.drop(['target', 'date'], axis=1).values
-        y_inner_val = inner_val_df['target'].values
-
-        X_train = df_train.drop(['target', 'date'], axis=1).values
+        X_train = df_train.drop(['target'], axis=1).values
         y_train = df_train['target'].values
-
-        X_test = df_test.drop(['target', 'date'], axis=1).values
-        y_test = df_test['target'].values
+        X_val = df_val.drop(['target'], axis=1).values
+        y_val = df_val['target'].values
 
         best_val_mse = float('inf')
         best_params = None
@@ -75,18 +65,18 @@ if __name__ == "__main__":
         for n_neurons in param_grid['n_neurons']:
             for learning_rate in param_grid['learning_rate']:
                 model = build_model(
-                    input_shape=X_inner_train.shape[1],
+                    input_shape=X_train.shape[1],
                     n_neurons=n_neurons,
                     learning_rate=learning_rate
                 )
                 model.fit(
-                    X_inner_train, y_inner_train,
+                    X_train, y_train,
                     epochs=50, 
                     batch_size=32,
                     verbose=0 
                 )
                 
-                val_mse = model.evaluate(X_inner_val, y_inner_val, verbose=0)
+                val_mse = model.evaluate(X_val, y_val, verbose=0)
                 
                 if val_mse < best_val_mse:
                     best_val_mse = val_mse
@@ -94,27 +84,33 @@ if __name__ == "__main__":
 
         print(f"Best hyperparameters found: {best_params}")
 
-        print(f"--- Refitting best model on full training data for Fold {fold} ---")
+        print(f"--- Refitting model on combined training & validation data for Fold {fold} ---")
+        
+        full_train_df = pd.concat([df_train, df_val])
+        X_full_train = full_train_df.drop(['target'], axis=1).values
+        y_full_train = full_train_df['target'].values
+
+        X_test = df_test.drop(['target'], axis=1).values
+        y_test = df_test['target'].values
+        
         final_model = build_model(
-            input_shape=X_train.shape[1],
+            input_shape=X_full_train.shape[1],
             **best_params
         )
         final_model.fit(
-            X_train, y_train,
+            X_full_train, y_full_train,
             epochs=50,
             batch_size=32,
             verbose=0
         )
 
-        mse_in_sample = final_model.evaluate(X_train, y_train, verbose=0)
+        mse_in_sample = final_model.evaluate(X_full_train, y_full_train, verbose=0)
         rmse_in_sample = np.sqrt(mse_in_sample)
-        
-        y_pred_in_sample = final_model.predict(X_train, verbose=0).flatten()
-        dir_acc_in_sample = np.mean(np.sign(y_pred_in_sample) == np.sign(y_train)) * 100
+        y_pred_in_sample = final_model.predict(X_full_train, verbose=0).flatten()
+        dir_acc_in_sample = np.mean(np.sign(y_pred_in_sample) == np.sign(y_full_train)) * 100
 
         mse_out_of_sample = final_model.evaluate(X_test, y_test, verbose=0)
         rmse_out_of_sample = np.sqrt(mse_out_of_sample)
-        
         y_pred_out_of_sample = final_model.predict(X_test, verbose=0).flatten()
         dir_acc_out_of_sample = np.mean(np.sign(y_pred_out_of_sample) == np.sign(y_test)) * 100
         
@@ -135,5 +131,5 @@ if __name__ == "__main__":
         }
         all_fold_results.append(fold_results)
 
-        results_df = pd.DataFrame(all_fold_results)
-        results_df.to_csv('model_results.csv', index=False)
+    results_df = pd.DataFrame(all_fold_results)
+    results_df.to_csv('model_results.csv', index=False)

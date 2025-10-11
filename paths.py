@@ -4,10 +4,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent
 
 # Common subpaths
+MODELS_DIR = REPO_ROOT / "training_price_prediction" / "models"
 DATA_DIR = REPO_ROOT / "data"
-NOTEBOOKS_DIR = REPO_ROOT / "notebooks"
 PIPELINE_DIR = REPO_ROOT / "pipeline"
-MODELS_DIR = REPO_ROOT / "training_price_prediction"
 
 # Example specific datasets
 SP500_PATH = DATA_DIR / "sp500_daily_data.parquet"

@@ -16,7 +16,7 @@ source ~/.bashrc
 
 # Load Anaconda Module
 module load miniforge
-conda activate jupyter_env
+conda activate conda_env
 
 # go to your project directory
 cd /orcd/home/002/corte911/code/finNN_code

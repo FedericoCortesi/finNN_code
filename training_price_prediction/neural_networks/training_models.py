@@ -1,37 +1,51 @@
-import pandas as pd
-import numpy as np
 import os
 import time
+from itertools import product
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.regularizers import l2
 
+from paths import MODELS_DIR
 from gpu_test import gpu_test
-gpu_test()
+from pipeline.walkforward import WFCVTrainer, WFConfig
 
 
-from pipeline.walkforward import  WFCVTrainer, WFConfig
+# ----------------------------- Variables -------------------------------- #
 
-config = WFConfig()
-wfcv = WFCVTrainer(config=config)
+BATCH_SIZE = 2**7
+MAX_EPOCHS = 100
 
+# ----------------------------- Utilities -------------------------------- #
 
-class VerboseLoss(keras.callbacks.Callback):
-    def on_epoch_begin(self, epoch, logs=None):
-        self.start_time = time.time()  # record start time
+def to_f32(x):  # enforce float32 (helps TF perf & avoids NaN surprises)
+    return np.asarray(x, dtype=np.float32)
+
+def assert_finite(name, arr):
+    if not np.isfinite(arr).all():
+        bad = np.argwhere(~np.isfinite(arr))[:5].ravel()
+        raise ValueError(f"{name} has non-finite values at indices: {bad}")
     
+class VerboseLoss(keras.callbacks.Callback):
+    def on_train_begin(self, logs=None):
+        self.start_total = time.time()
+    def on_epoch_begin(self, epoch, logs=None):
+        self.start_epoch = time.time()
     def on_epoch_end(self, epoch, logs=None):
-        duration = time.time() - self.start_time  # compute elapsed seconds
-        print(
-            f"Epoch {epoch+1:03d} | "
-            f"loss={logs['loss']:.12f} | "
-            f"val_loss={logs.get('val_loss', float('nan')):.12f} | "
-            f"duration={duration:.2f}s | "
-            f"end_time={time.time():.2f}s"
-        )
+        elapsed = time.time() - self.start_epoch
+        now = time.strftime("%H:%M:%S", time.localtime())
+        loss = logs.get("loss", float("nan"))
+        vloss = logs.get("val_loss", float("nan"))
+        print(f"[{now}] Epoch {epoch+1:03d} | loss={loss:.8f} | val_loss={vloss:.8f} | {elapsed:.2f}s")
 
-es = keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+
+es = keras.callbacks.EarlyStopping(monitor='loss', patience=10, restore_best_weights=True)
 verbose_loss = VerboseLoss()
+
+# ------------------------------- Model ---------------------------------- #
 
 def build_model(input_shape, 
                          n_hidden_layers=2, 
@@ -44,7 +58,7 @@ def build_model(input_shape,
     
     model.add(layers.Input(shape=(input_shape,)))
     
-    for i in range(n_hidden_layers):
+    for _ in range(n_hidden_layers):
         model.add(layers.Dense(
             n_neurons, 
             activation=activation,
@@ -61,6 +75,12 @@ def build_model(input_shape,
     return model
 
 if __name__ == "__main__":
+    gpu_test()  # prints GPU info once
+
+    # configuration and splits
+    config = WFConfig()
+    wfcv = WFCVTrainer(config=config)
+    
     all_fold_results = []
 
     param_grid = {
@@ -73,10 +93,6 @@ if __name__ == "__main__":
     }
 
     for fold in range(config.folds):
-        # Just because it stopped there last iteration
-        # TODO: REMOVE!!!!!
-        if fold < 6:
-            continue
 
         print(f"\n===== Processing Fold {fold} =====\n")
         
@@ -105,8 +121,8 @@ if __name__ == "__main__":
 
                 model.fit(
                     X_train, y_train,
-                    epochs=50, 
-                    batch_size=32,
+                    epochs=MAX_EPOCHS, 
+                    batch_size=BATCH_SIZE,
                     callbacks=[es, verbose_loss],
                     shuffle=False, #time series?
                     verbose=0 
@@ -135,13 +151,13 @@ if __name__ == "__main__":
         )
 
         final_es = keras.callbacks.EarlyStopping(
-            monitor="val_loss", patience=5, restore_best_weights=True)
+            monitor="loss", patience=5, restore_best_weights=True)
 
 
         final_model.fit(
             X_full_train, y_full_train,
-            epochs=50,
-            batch_size=32,
+            epochs=MAX_EPOCHS,
+            batch_size=BATCH_SIZE,
             callbacks=[final_es, verbose_loss],
             verbose=0
         )
@@ -159,11 +175,10 @@ if __name__ == "__main__":
         print(f"In-sample RMSE: {rmse_in_sample:.6f} | In-sample Directional Accuracy: {dir_acc_in_sample:.2f}%")
         print(f"Out-of-sample RMSE: {rmse_out_of_sample:.6f} | Out-of-sample Directional Accuracy: {dir_acc_out_of_sample:.2f}%")
 
-        os.makedirs("models", exist_ok=True)
+        model_path = MODELS_DIR / f"model_fold_{fold}.keras"
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)  # make sure dir exists
+        final_model.save(model_path)        
 
-        model_path = f"../models/model_fold_{fold}.keras"
-        final_model.save(model_path)
-        
         fold_results = {
             'fold': fold,
             'best_hyperparameters': best_params,

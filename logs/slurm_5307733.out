@@ -1,0 +1,33 @@
+==================== Running GPU test ====================
+TF: 2.16.1
+Visible GPUs: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+Built with CUDA?: True
+OrderedDict({'cpu_compiler': '/usr/lib/llvm-17/bin/clang', 'cuda_compute_capabilities': ['sm_50', 'sm_60', 'sm_70', 'sm_80', 'compute_90'], 'cuda_version': '12.3', 'cudnn_version': '8', 'is_cuda_build': True, 'is_rocm_build': False, 'is_tensorrt_build': True})
+libcuda.so.1 is loadable ✅
+
+
+
+
+===== Processing Fold 6 =====
+
+
+--- Tuning hyperparameters for Fold 6 ---
+
+
+Fold: 6 | n_neurons: 16 | learning_rate: 0.01
+Epoch 001 | loss=0.000981962541 | val_loss=nan | duration=11.35s | end_time=1760195779.72s
+Epoch 002 | loss=0.000952924427 | val_loss=nan | duration=7.12s | end_time=1760195786.83s
+Epoch 003 | loss=0.000952924951 | val_loss=nan | duration=7.22s | end_time=1760195794.05s
+Epoch 004 | loss=0.000952924835 | val_loss=nan | duration=6.02s | end_time=1760195800.07s
+Epoch 005 | loss=0.000952924660 | val_loss=nan | duration=6.17s | end_time=1760195806.25s
+Epoch 006 | loss=0.000952924660 | val_loss=nan | duration=6.85s | end_time=1760195813.10s
+Epoch 007 | loss=0.000952924835 | val_loss=nan | duration=6.68s | end_time=1760195819.78s
+Epoch 008 | loss=0.000952925184 | val_loss=nan | duration=6.85s | end_time=1760195826.62s
+Epoch 009 | loss=0.000952924951 | val_loss=nan | duration=7.15s | end_time=1760195833.77s
+Epoch 010 | loss=0.000952924602 | val_loss=nan | duration=7.06s | end_time=1760195840.84s
+Epoch 011 | loss=0.000952924835 | val_loss=nan | duration=6.03s | end_time=1760195846.86s
+Epoch 012 | loss=0.000952925184 | val_loss=nan | duration=6.08s | end_time=1760195852.94s
+Epoch 013 | loss=0.000952924835 | val_loss=nan | duration=6.08s | end_time=1760195859.02s
+Epoch 014 | loss=0.000952924485 | val_loss=nan | duration=7.36s | end_time=1760195866.38s
+Epoch 015 | loss=0.000952924485 | val_loss=nan | duration=6.11s | end_time=1760195872.49s
+Epoch 016 | loss=0.000952924485 | val_loss=nan | duration=6.95s | end_time=1760195879.44s

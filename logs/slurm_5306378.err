@@ -13,3 +13,14 @@ I0000 00:00:1760191049.912869 1480043 service.cc:153]   StreamExecutor device (1
 I0000 00:00:1760191051.392684 1480043 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
 /home/corte911/.conda/envs/jupyter_env/lib/python3.12/site-packages/keras/src/callbacks/early_stopping.py:99: UserWarning: Early stopping conditioned on metric `val_loss` which is not available. Available metrics are: loss
   current = self.get_monitor_value(logs)
+/home/corte911/.conda/envs/jupyter_env/lib/python3.12/site-packages/keras/src/callbacks/early_stopping.py:99: UserWarning: Early stopping conditioned on metric `val_loss` which is not available. Available metrics are: loss
+  current = self.get_monitor_value(logs)
+Traceback (most recent call last):
+  File "/orcd/home/002/corte911/code/finNN_code/training_price_prediction/neural_networks/training_models.py", line 165, in <module>
+    final_model.save(model_path)
+  File "/home/corte911/.conda/envs/jupyter_env/lib/python3.12/site-packages/keras/src/utils/traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "/home/corte911/.conda/envs/jupyter_env/lib/python3.12/site-packages/keras/src/saving/saving_lib.py", line 141, in save_model
+    with open(filepath, "wb") as f:
+         ^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '../models/model_fold_6.keras'

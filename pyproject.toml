@@ -10,4 +10,4 @@ dependencies = []
 
 [tool.setuptools]
 packages = ["pipeline", "data", "training_price_prediction", "utils"]    # subpackages (they must have __init__.py)
-py-modules = ["paths"]              # top-level paths.py becomes importable
+py-modules = ["paths", "gpu_test"]              # top-level paths.py becomes importable

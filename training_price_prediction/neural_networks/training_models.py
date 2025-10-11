@@ -1,8 +1,37 @@
 import pandas as pd
 import numpy as np
+import os
+import time
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.regularizers import l2
+
+from gpu_test import gpu_test
+gpu_test()
+
+
+from pipeline.walkforward import  WFCVTrainer, WFConfig
+
+config = WFConfig()
+wfcv = WFCVTrainer(config=config)
+
+
+class VerboseLoss(keras.callbacks.Callback):
+    def on_epoch_begin(self, epoch, logs=None):
+        self.start_time = time.time()  # record start time
+    
+    def on_epoch_end(self, epoch, logs=None):
+        duration = time.time() - self.start_time  # compute elapsed seconds
+        print(
+            f"Epoch {epoch+1:03d} | "
+            f"loss={logs['loss']:.12f} | "
+            f"val_loss={logs.get('val_loss', float('nan')):.12f} | "
+            f"duration={duration:.2f}s | "
+            f"end_time={time.time():.2f}s"
+        )
+
+es = keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+verbose_loss = VerboseLoss()
 
 def build_model(input_shape, 
                          n_hidden_layers=2, 
@@ -43,40 +72,47 @@ if __name__ == "__main__":
         'learning_rate': [0.01, 0.001, 0.0001]
     }
 
-    training_dataset, validation_dataset, test_dataset =  # TO DO
+    for fold in range(config.folds):
+        # Just because it stopped there last iteration
+        # TODO: REMOVE!!!!!
+        if fold < 6:
+            continue
 
-    for fold in sorted(training_dataset.keys()):
-    
-        print(f"\n===== Processing Fold {fold} =====")
+        print(f"\n===== Processing Fold {fold} =====\n")
         
-        df_train = training_dataset[fold]
-        df_val = validation_dataset[fold]
-        df_test = test_dataset[fold]
+        df_train, df_val, df_test = wfcv.obtain_datasets_fold(fold)
 
-        X_train = df_train.drop(['target'], axis=1).values
-        y_train = df_train['target'].values
-        X_val = df_val.drop(['target'], axis=1).values
-        y_val = df_val['target'].values
+        X_train = df_train.drop(['y'], axis=1).values
+        y_train = df_train['y'].values
+        X_val = df_val.drop(['y'], axis=1).values
+        y_val = df_val['y'].values
 
         best_val_mse = float('inf')
         best_params = None
         
-        print(f"--- Tuning hyperparameters for Fold {fold} ---")
+        print(f"\n--- Tuning hyperparameters for Fold {fold} ---\n")
         for n_neurons in param_grid['n_neurons']:
             for learning_rate in param_grid['learning_rate']:
+
+                print(f"\nFold: {fold} | n_neurons: {n_neurons} | learning_rate: {learning_rate}")
+
                 model = build_model(
                     input_shape=X_train.shape[1],
                     n_neurons=n_neurons,
                     learning_rate=learning_rate
                 )
+
+
                 model.fit(
                     X_train, y_train,
                     epochs=50, 
                     batch_size=32,
+                    callbacks=[es, verbose_loss],
+                    shuffle=False, #time series?
                     verbose=0 
                 )
                 
-                val_mse = model.evaluate(X_val, y_val, verbose=0)
+                val_mse = model.evaluate(X_val, y_val, verbose=1)
                 
                 if val_mse < best_val_mse:
                     best_val_mse = val_mse
@@ -87,20 +123,26 @@ if __name__ == "__main__":
         print(f"--- Refitting model on combined training & validation data for Fold {fold} ---")
         
         full_train_df = pd.concat([df_train, df_val])
-        X_full_train = full_train_df.drop(['target'], axis=1).values
-        y_full_train = full_train_df['target'].values
+        X_full_train = full_train_df.drop(['y'], axis=1).values
+        y_full_train = full_train_df['y'].values
 
-        X_test = df_test.drop(['target'], axis=1).values
-        y_test = df_test['target'].values
+        X_test = df_test.drop(['y'], axis=1).values
+        y_test = df_test['y'].values
         
         final_model = build_model(
             input_shape=X_full_train.shape[1],
             **best_params
         )
+
+        final_es = keras.callbacks.EarlyStopping(
+            monitor="val_loss", patience=5, restore_best_weights=True)
+
+
         final_model.fit(
             X_full_train, y_full_train,
             epochs=50,
             batch_size=32,
+            callbacks=[final_es, verbose_loss],
             verbose=0
         )
 
@@ -117,7 +159,9 @@ if __name__ == "__main__":
         print(f"In-sample RMSE: {rmse_in_sample:.6f} | In-sample Directional Accuracy: {dir_acc_in_sample:.2f}%")
         print(f"Out-of-sample RMSE: {rmse_out_of_sample:.6f} | Out-of-sample Directional Accuracy: {dir_acc_out_of_sample:.2f}%")
 
-        model_path = f'models/model_fold_{fold}.keras'
+        os.makedirs("models", exist_ok=True)
+
+        model_path = f"../models/model_fold_{fold}.keras"
         final_model.save(model_path)
         
         fold_results = {

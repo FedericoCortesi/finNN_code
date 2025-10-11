@@ -1,5 +1,6 @@
 # How can I connect to a compute node?
 1. Open CMD and login with `corte911@orcd-login004.mit.edu`, the number in the login can go from 1 to 4 and the higher number are usually faster.
+    - `sinfo -p mit_normal_gpu -O Partition,Nodes,CPUs,Memory,Gres` check availability
 2. Open CMD and write `salloc -p mit_normal_gpu --gres=gpu:1 --cpus-per-task=8 --mem=32G --time=06:00:00` with the desired parameters.
     - The system then assigns you a node
 3. Open ssh config file (from vscode) and change the parameters fro the compute node with the new assigned node.

@@ -8,114 +8,201 @@ from sklearn.preprocessing import StandardScaler
 
 from typing import Callable, Dict, Tuple, List
 
-Array2D = np.ndarray  # shape (T, F)
-Array3D = np.ndarray  # shape (T, L, F)
+from .preprocessing import preprocess
 
 @dataclass
 class WFConfig:
-    lags: int = 20 # to validate
-    T_train: int = 252*3
-    T_val: int = 252
-    T_test: int = 252
-    step: int = 252 
-    batch: int = 100 # For SGD 
-    epochs: int = 50
-    patience: int = 8
-    monitor: str = "val_rmse"
+    lags: int = 20
+    T: int = 6288
+    step: int = 251
+    folds: int = 21
+    T_train = step*3
+    T_val   = step
+    T_test  = step
+
+    # optional hyperparameters
+    batch = 100
+    epochs = 50
+    patience = 8
+    monitor = "val_rmse"
+
+
 
 class WFCVTrainer:
     def __init__(
         self,
-        cfg: WFConfig,
-        df_long: pd.DataFrame,                  # preprocessed long df
-        id_col: str, 
+        config: WFConfig,
+        id_col: str = "ret", 
+        df_long: pd.DataFrame = pd.DataFrame({}),                  # preprocessed long df
         date_col: str = "date",
-        value_cols: List[str] = ["logret_open", 
-                                 "logret_high", 
-                                 "logret_low", 
-                                 "logret_close", 
-                                 "volume"],     # e.g. ["close","open","high","low"]
+        value_cols: List[str] = ["ret", "volume"],      
         target_col: str = "ret",                        # e.g. "ret" or "close_lead1"
         scaler_factory: Callable = StandardScaler.fit_transform,
     ):
         self.df = df_long.copy()
         self.id_col, self.date_col = id_col, date_col
         self.value_cols, self.target_col = value_cols, target_col
-        self.cfg = cfg
+        self.config = config
         self.scaler_factory = scaler_factory
 
         # build wide dict once (cheap, readable)
-        # self.wide = self._long_to_wide(self.df, value_cols + [target_col])
+        if df_long.size == 0:
+            self.df = preprocess()[["t", "ret", "permno"]].copy()
 
-    def _choose_symbols(self, pd.DataFrame):
+        self.stamps_and_windows_array = self._make_windows()
 
-        return
-
-
-    
-
-    def _long_to_wide(self, df: pd.DataFrame, cols: List[str]) -> Dict[str, pd.DataFrame]:
-        df = df.sort_values([self.date_col, self.id_col])
-        # collapse duplicates deterministically if any
-        df = (df.groupby([self.date_col, self.id_col], as_index=False).last())
-        wide = {}
-        for c in cols:
-            w = df.pivot(index=self.date_col, columns=self.id_col, values=c).sort_index()
-            wide[c] = w
-        # align columns across variables
-        common_cols = None
-        for w in wide.values():
-            common_cols = w.columns if common_cols is None else common_cols.intersection(w.columns)
-        for k in wide:
-            wide[k] = wide[k].reindex(columns=common_cols)
-        return wide
 
     # ---- utilities
-    def _walk_forward(self, T: int):
-        s = 0
+    def _walk_forward(self):
+        # self.config.lagsast train index
+        t_0 = 0
+
+        result = []
+
         while True:
-            a, b = s, s + self.cfg.T_train
-            c, d = b, b + self.cfg.T_val
-            e = d + self.cfg.T_test
-            if e > T: break
-            yield slice(a,b), slice(b,c), slice(c,d)
-            s += self.cfg.step
+            a, b = t_0 , t_0 + self.config.T_train # train
+            c = b + self.config.T_val # validation
+            d = c + self.config.T_test # test
+            if d > self.config.T: 
+                break
+        
+            result.append([slice(a,b), slice(b,c), slice(c,d)])
+            t_0 += self.config.step
+        return result
 
-    def _make_lagged(self, X: Array2D, L: int) -> Array3D:
-        # X: (T,F) -> (T-L,L,F)
-        T, F = X.shape
-        return np.stack([X[i:T-L+i] for i in range(L)], axis=1)
 
-    # ---- fold assembly
-    def _design_for_fold(
-        self, tr: slice, va: slice, te: slice
-    ) -> Tuple[Array3D, np.ndarray, Array3D, np.ndarray, Array3D, np.ndarray, List[int]]:
-        # choose symbols using **train slice only**
-        train_frame = self.wide[self.value_cols[0]].iloc[tr]  # any base var for coverage
-        syms = self._choose_symbols(train_frame)               # returns list of permno
+    def _make_windows(self):
+        """
+        Returns:
+        train_stamps, train_windows, val_stamps, val_windows, test_stamps, test_windows
+        """
+        # Declare vars to store
+        train_stamps = []
+        val_stamps = []
+        test_stamps = []
 
-        # stack features in fixed order across variables & symbols
-        X_blocks = [self.wide[v][syms] for v in self.value_cols]   # each (T, |S|)
-        X_df = pd.concat(X_blocks, axis=1)                         # (T, V*|S|)
-        y_df = self.wide[self.target_col][syms]                    # (T, |S|) or pick one
+        train_windows = []
+        val_windows = []
+        test_windows = []
 
-        # optional scaler: fit on train, apply everywhere (no leakage)
-        if self.scaler_factory is not None:
-            scaler = self.scaler_factory(X_df.iloc[tr])
-            X_df = scaler(X_df)
+        # Iterate over folds
+        for train, val, test in self._walk_forward():
+            # Append to lists
+            train_stamps.append(train)
+            val_stamps.append(val)
+            test_stamps.append(test)
 
-        # collapse y for a single target per timepoint (example: cross-section mean)
-        y_series = y_df.mean(axis=1)  # replace with your target rule
+    
+            new_train = [(train.start+i, train.start+i+self.config.lags) 
+                         for i in range(self.config.T_train-self.config.lags)]
+            new_val = [(val.start+i, val.start+i+self.config.lags) 
+                       for i in range(self.config.T_val-self.config.lags)]
+            new_test = [(test.start+i, test.start+i+self.config.lags) 
+                        for i in range(self.config.T_test-self.config.lags)]
 
-        # build arrays per slice
-        L = self.cfg.lags
-        def to_arrays(slc):
-            X_2d = X_df.iloc[slc].to_numpy()
-            X_3d = self._make_lagged(X_2d, L)              # (Tslc-L,L,F)
-            y_1d = y_series.iloc[slc][L:].to_numpy()       # align lead
-            return X_3d, y_1d
 
-        Xtr, ytr = to_arrays(tr)
-        Xva, yva = to_arrays(va)
-        Xte, yte = to_arrays(te)
-        return Xtr, ytr, Xva, yva, Xte, yte, syms
+            assert all(train.start <= a and b <= train.stop
+                    for a,b in new_train), "Train windows out of bounds!"
+            assert all(val.start <= a and b <= val.stop
+                    for a,b in new_val), "Val windows out of bounds!"
+            assert all(test.start <= a and b <= test.stop
+                    for a,b in new_test), "Test windows out of bounds!"
+
+            # Make inner lists with all possible windows
+            train_windows.append(new_train) 
+            val_windows.append(new_val) 
+            test_windows.append(new_test) 
+
+        # define all windows possible
+        all_windows = set([(i, i+self.config.lags)for i in range(self.config.T-self.config.lags)])
+        all_windows = sorted(all_windows)
+
+
+        return train_stamps, train_windows, val_stamps, val_windows, test_stamps, test_windows, all_windows
+    
+
+
+    def _build_master_df(
+            self, 
+            id_col="permno", 
+            t_col="t" 
+            ) -> pd.DataFrame:
+        
+        # Obtain windows 
+        windows = self.stamps_and_windows_array[6].copy()
+
+
+        # 1) Wide once: rows=permno, cols=t (sorted)
+        W = (self.df.pivot(index=id_col, columns=t_col, values=self.id_col)
+                    .sort_index(axis=1))
+        col_index = W.columns  # Int64Index of t's
+        V = W.values           # ndarray (n_permno × n_time), avoids per-iteration DataFrame ops
+
+        # Precompute final column names for each block
+        out_cols = [f"feature_{i}" for i in range(self.config.lags)] + ["y"]
+
+        out_frames = []  # collect blocks here
+
+        for a, b in windows:
+
+
+            # 2) Get column *positions* for [a..b] (inclusive), skip if any missing
+            # add one for y
+            wanted = np.arange(a, b + 1)
+            pos = col_index.get_indexer(wanted)   # -1 where missing
+            if (pos < 0).any():
+                # some dates missing in wide; skip this window entirely
+                continue
+
+            # 3) Slice ndarray by columns; shape (n_permno × (L+1))
+            block = V[:, pos]
+
+            # 4) Drop any permno with NaN in the window
+            ok_rows = ~np.isnan(block).any(axis=1)
+            if not ok_rows.any():
+                continue
+            block = block[ok_rows]
+
+            # 5) Build a small DataFrame for this window; rename cols
+            #    First L columns → features, last col → y
+            df_block = pd.DataFrame(block, columns=out_cols)
+
+            # add window informatio
+            df_block["window"] = [(a,b)]*len(df_block)
+
+            # (optional) If you want to keep which permno each row is:
+            # keep_ids = W.index.to_numpy()[ok_rows]
+            # df_block.insert(0, "permno", keep_ids)
+            # df_block.insert(1, "t_end", b)
+
+            out_frames.append(df_block)
+
+        # 6) Single concat at the end
+        if out_frames:
+            df_base = pd.concat(out_frames, ignore_index=True)
+        else:
+            df_base = pd.DataFrame(columns=out_cols)
+
+        return df_base
+
+
+    def obtain_datasets_fold(self, fold:int):
+        """
+        Given a number of fold, returns the train val and test dataframe  
+        """
+
+        # Back out windows
+        train_stamps, train_windows, val_stamps, val_windows, test_stamps, test_windows, all_windows = self.stamps_and_windows_array
+
+        # Build master df
+        df_master = self._build_master_df().copy()
+
+        # make the dataframes
+        df_train = df_master[df_master["window"].isin(train_windows[fold])].drop(columns="window")
+        df_val = df_master[df_master["window"].isin(val_windows[fold])].drop(columns="window")
+        df_test = df_master[df_master["window"].isin(test_windows[fold])].drop(columns="window")
+
+        return df_train, df_val, df_test
+
+
+

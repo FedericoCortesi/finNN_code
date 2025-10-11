@@ -25,15 +25,34 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-def setup_logger(name: str) -> logging.Logger:
+def setup_logger(name: str, level="DEBUG") -> logging.Logger:
+    level = level.upper()
+    levels = ["DEBUG", "INFO", "WARNING"]
+
+    assert level.upper() in levels, f"level variable must be in {levels}"
+
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
+    
+    if level == "DEBUG":
+        logger.setLevel(logging.DEBUG)
+    elif level == "INFO":
+        logger.setLevel(logging.INFO)
+    elif level == "WARNING":
+        logger.setLevel(logging.WARNING)
+
 
     if logger.hasHandlers():
         logger.handlers.clear()
 
     ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    
+    if level == "DEBUG":
+        ch.setLevel(logging.DEBUG)
+    elif level == "INFO":
+        ch.setLevel(logging.INFO)
+    elif level == "WARNING":
+        ch.setLevel(logging.WARNING)
+    
     ch.setFormatter(CustomFormatter())
     logger.addHandler(ch)
 

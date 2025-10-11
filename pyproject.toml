@@ -1,20 +1,13 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "finnn_code"
+name = "finNN_code"
 version = "0.1.0"
-description = "Finance utilities and experiments"
-authors = [
-    { name = "Federico Cortesi" }
-]
-readme = "README.md"
 requires-python = ">=3.9"
 dependencies = []
 
 [tool.setuptools]
-packages = ["utils"]
-
-[tool.setuptools.packages.find]
-packages = ["utils*"]
+packages = ["pipeline", "data", "training_price_prediction", "utils"]    # subpackages (they must have __init__.py)
+py-modules = ["paths", "gpu_test"]              # top-level paths.py becomes importable

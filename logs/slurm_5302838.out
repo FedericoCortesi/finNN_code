@@ -1,0 +1,25 @@
+==================== Running GPU test ====================
+TF: 2.16.1
+Visible GPUs: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+Built with CUDA?: True
+OrderedDict({'cpu_compiler': '/usr/lib/llvm-17/bin/clang', 'cuda_compute_capabilities': ['sm_50', 'sm_60', 'sm_70', 'sm_80', 'compute_90'], 'cuda_version': '12.3', 'cudnn_version': '8', 'is_cuda_build': True, 'is_rocm_build': False, 'is_tensorrt_build': True})
+libcuda.so.1 is loadable ✅
+
+
+
+
+===== Processing Fold 0 =====
+
+
+--- Tuning hyperparameters for Fold 0 ---
+
+
+Fold: 0 | n_neurons: 16 | learning_rate: 0.01
+Epoch 001 | loss=0.001178977778 | val_loss=nan | duration=12.66s | end_time=1760157572.28s
+Epoch 002 | loss=0.001143973437 | val_loss=nan | duration=8.61s | end_time=1760157580.89s
+Epoch 003 | loss=0.001143973554 | val_loss=nan | duration=8.73s | end_time=1760157589.62s
+Epoch 004 | loss=0.001143973786 | val_loss=nan | duration=9.05s | end_time=1760157598.67s
+Epoch 005 | loss=0.001143974019 | val_loss=nan | duration=8.97s | end_time=1760157607.64s
+Epoch 006 | loss=0.001143973204 | val_loss=nan | duration=8.93s | end_time=1760157616.57s
+Epoch 007 | loss=0.001143973670 | val_loss=nan | duration=9.03s | end_time=1760157625.60s
+Epoch 008 | loss=0.001143974136 | val_loss=nan | duration=9.39s | end_time=1760157634.99s

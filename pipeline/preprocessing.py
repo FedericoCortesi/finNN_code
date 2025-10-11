@@ -1,10 +1,16 @@
 import pandas as pd
 import numpy as np
 
-DATA_DIR = "../data/sp500_daily_data.parquet"
+from  paths import SP500_PATH
 
-def import_data(path: str) -> pd.DataFrame:
+def import_data(path) -> pd.DataFrame:
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
     df = pd.read_parquet(path)
+
+    # Handle dates
+    df["date"] = pd.to_datetime(df["date"], format="%Y-%m-%d")
+
     return df
 
 def adjust_for_splits(df: pd.DataFrame,
@@ -75,7 +81,7 @@ def handle_nans(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def create_log_returns(df:pd.DataFrame,
+def create_returns(df:pd.DataFrame,
                        cols:list=["open", "high", "low", "close"]
                        )->pd.DataFrame:
     """
@@ -85,9 +91,9 @@ def create_log_returns(df:pd.DataFrame,
 
     # Iterate over each column
     for c in cols:
-        df[f'logret_{c}'] = (
+        df[f'ret_{c}'] = (
             df.groupby('permno')[c]
-            .apply(lambda x: np.log(x / x.shift(1)))
+            .apply(lambda x: x / x.shift(1)-1).values
         )
 
     # Drop Nans (first day returns)
@@ -95,17 +101,25 @@ def create_log_returns(df:pd.DataFrame,
 
     return df
 
-def preprocess():
-    df = import_data(DATA_DIR)
-    df = adjust_for_splits(df)
-    df = handle_nans(df)
-    df = create_log_returns(df)
-    
+def create_time_index(df:pd.DataFrame):
+    # Transform to contiguos index
+    unique_dates = np.sort(df["date"].unique())
+    date_to_int = {d: i for i, d in enumerate(unique_dates)} # 
+    df["t"] = df["date"].map(date_to_int)
+
     return df
 
 
+def preprocess(returns:bool=False):
+    df = import_data(SP500_PATH)
+    df = adjust_for_splits(df)
+    df = handle_nans(df)
+    if returns:
+        df = create_returns(df)
 
-if __name__ == "__main__":
-    df = preprocess()
+    df = create_time_index(df)
+
+    return df
+
 
 

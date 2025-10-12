@@ -6,12 +6,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.regularizers import l2
+from tensorflow.keras import layers #type:ignore
+from tensorflow.keras.regularizers import l2 #type:ignore
 
-from paths import MODELS_DIR
-from gpu_test import gpu_test
-from pipeline.walkforward import WFCVTrainer, WFConfig
+from utils.paths import MODELS_DIR
+from utils.gpu_test import gpu_test
+from pipeline.walkforward import WFCVGenerator, WFConfig
 
 # ----------------------------- Utilities -------------------------------- #
 
@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     # configuration and splits
     config = WFConfig()
-    wfcv = WFCVTrainer(config=config)
+    wfcv = WFCVGenerator(config=config)
     
     all_fold_results = []
 

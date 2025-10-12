@@ -22,20 +22,20 @@ conda activate conda_env
 cd /orcd/home/002/corte911/code/finNN_code
 
 # --- Ensure NVIDIA wheels' libs are on LD_LIBRARY_PATH ---
-export LD_LIBRARY_PATH="$(
-python - <<'PY'
-import os, glob, site
-paths=set()
-for sp in site.getsitepackages()+[site.getusersitepackages()]:
-    if not sp: 
-        continue
-    for pat in ("nvidia/*/lib","nvidia/*/lib/*"):
-        for d in glob.glob(os.path.join(sp, pat)):
-            if os.path.isdir(d):
-                paths.add(d)
-print(":".join(sorted(paths)))
-PY
-):${LD_LIBRARY_PATH}"
+#export LD_LIBRARY_PATH="$(
+#python - <<'PY'
+#import os, glob, site
+#paths=set()
+#for sp in site.getsitepackages()+[site.getusersitepackages()]:
+#    if not sp: 
+#        continue
+#    for pat in ("nvidia/*/lib","nvidia/*/lib/*"):
+#        for d in glob.glob(os.path.join(sp, pat)):
+#            if os.path.isdir(d):
+#                paths.add(d)
+#print(":".join(sorted(paths)))
+#PY
+#):${LD_LIBRARY_PATH}"
 
 # === run your python script ===
-python -u training_price_prediction/neural_networks/training_models.py
+python -u src/price_prediction/run_experiments.py

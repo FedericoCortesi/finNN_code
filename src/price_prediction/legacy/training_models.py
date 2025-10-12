@@ -6,17 +6,17 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.regularizers import l2
+from tensorflow.keras import layers #type:ignore
+from tensorflow.keras.regularizers import l2 #type:ignore
 
-from paths import MODELS_DIR
-from gpu_test import gpu_test
-from pipeline.walkforward import WFCVTrainer, WFConfig
+from utils.paths import SMOKE_DIR
+from utils.gpu_test import gpu_test
+from pipeline.walkforward import WFCVGenerator, WFConfig
 
 
 # ----------------------------- Variables -------------------------------- #
-
-BATCH_SIZE = 2**7
+MODELS_DIR = SMOKE_DIR
+BATCH_SIZE = 2**16
 MAX_EPOCHS = 100
 
 # ----------------------------- Utilities -------------------------------- #
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     # configuration and splits
     config = WFConfig()
-    wfcv = WFCVTrainer(config=config)
+    wfcv = WFCVGenerator(config=config)
     
     all_fold_results = []
 
@@ -175,7 +175,7 @@ if __name__ == "__main__":
         print(f"In-sample RMSE: {rmse_in_sample:.6f} | In-sample Directional Accuracy: {dir_acc_in_sample:.2f}%")
         print(f"Out-of-sample RMSE: {rmse_out_of_sample:.6f} | Out-of-sample Directional Accuracy: {dir_acc_out_of_sample:.2f}%")
 
-        model_path = MODELS_DIR / f"model_fold_{fold}.keras"
+        model_path = MODELS_DIR / f"model_fold_{fold:03d}.keras"
         MODELS_DIR.mkdir(parents=True, exist_ok=True)  # make sure dir exists
         final_model.save(model_path)        
 

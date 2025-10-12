@@ -1,13 +1,29 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "finNN_code"
 version = "0.1.0"
+description = "Neural network training pipeline for financial time series"
+readme = "README.md"
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+  "numpy",
+  "pandas",
+  "pyyaml",
+  "tensorflow>=2.15",
+  "pyarrow",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["pipeline", "data", "training_price_prediction", "utils"]    # subpackages (they must have __init__.py)
-py-modules = ["paths", "gpu_test"]              # top-level paths.py becomes importable
+# Point setuptools to the src/ layout
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+# only include the subpackages you mentioned
+include = ["config*", "data*", "pipeline*", "training_price_prediction*", "utils*"]
+
+
+

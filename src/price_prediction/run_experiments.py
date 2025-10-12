@@ -63,7 +63,7 @@ def main():
     # Only number of rows change, columns stay constant 
     input_shape = cfg["walkforward"]["lags"]
 
-    max_folds = args["walkforward"]["max_folds"]
+    max_folds = cfg["walkforward"]["max_folds"]
 
     # -------- train per fold --------
     for fold, data in enumerate(wf.folds()):

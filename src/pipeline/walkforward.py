@@ -2,14 +2,13 @@ from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from tensorflow import keras
 from sklearn.preprocessing import StandardScaler
 
 
 from typing import Callable, Dict, Tuple, List
 
-from .preprocessing import preprocess
-from .wf_config import WFConfig
+from pipeline.preprocessing import preprocess
+from pipeline.wf_config import WFConfig
 
 from utils.custom_formatter import setup_logger
 
@@ -20,13 +19,13 @@ class WFCVGenerator:
         config:WFConfig,
         id_col: str = "permno", 
         df_long: pd.DataFrame = pd.DataFrame({}),                  # preprocessed long df
-        date_col: str = "date",
+        time_col: str = "t",
         value_cols: List[str] = ["ret", "volume"],      
         target_col: str = "ret",                        # e.g. "ret" or "close_lead1"
         scaler_factory: Callable = StandardScaler.fit_transform,
     ):
         self.df = df_long.copy()
-        self.id_col, self.date_col = id_col, date_col
+        self.id_col, self.time_col = id_col, time_col
         self.value_cols, self.target_col = value_cols, target_col
         self.config = config
         self.scaler_factory = scaler_factory
@@ -123,7 +122,6 @@ class WFCVGenerator:
 
     def _build_master_df(
             self, 
-            id_col="permno", 
             t_col="t" 
             ) -> pd.DataFrame:
         
@@ -131,8 +129,9 @@ class WFCVGenerator:
         windows = self.stamps_and_windows_array[6].copy()
 
 
-        # 1) Wide once: rows=permno, cols=t (sorted)
-        W = (self.df.pivot(index=id_col, columns=t_col, values=self.id_col)
+        # 1) Wide once: rows=permno, cols=t (sorted) 
+        # Values has to be ret!!!!!!!!!!!!!
+        W = (self.df.pivot(index=self.id_col, columns=self.time_col, values=self.target_col)
                     .sort_index(axis=1))
         col_index = W.columns  # Int64Index of t's
         W = W.astype("float64")  # otherwise numpy doesnt coerce pd nans

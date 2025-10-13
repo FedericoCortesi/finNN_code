@@ -54,7 +54,7 @@ class ExperimentLogger:
                 "trial,fold,"
                 "tr_loss,val_loss,test_loss,"
                 "tr_mae,val_mae,test_mae,"
-                "tr_diracc,val_diracc,test_diracc,"
+                "tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,"
                 "seconds,model_path\n"
             )
         # save config + small env stamp
@@ -80,7 +80,7 @@ class ExperimentLogger:
             trial, fold,
             tr_loss, val_loss, test_loss,
             tr_mae,  val_mae,  test_mae,
-            tr_diracc, val_diracc, test_diracc,
+            tr_directional_accuracy_pct, val_directional_accuracy_pct, test_directional_accuracy_pct,
             seconds, model_path
             """
             line = (
@@ -88,7 +88,7 @@ class ExperimentLogger:
                 f"{kw['fold']},"
                 f"{kw.get('tr_loss','')},{kw['val_loss']},{kw['test_loss']},"
                 f"{kw.get('tr_mae','')},{kw.get('val_mae','')},{kw.get('test_mae','')},"
-                f"{kw.get('tr_diracc','')},{kw.get('val_diracc','')},{kw.get('test_diracc','')},"
+                f"{kw.get('tr_directional_accuracy_pct','')},{kw.get('val_directional_accuracy_pct','')},{kw.get('test_directional_accuracy_pct','')},"
                 f"{kw.get('seconds','')},{kw.get('model_path','')}\n"
             )
             with open(self.results_csv, "a") as f:

@@ -32,7 +32,7 @@ trainer:
   batch_size: 1024 # to make it fast
   lr: 1.0e-3
   loss: "mse"
-  metrics: ["mae","mse"]
+  metrics: ["mae","mse", "dir_acc"]
   search: False
 
 model:

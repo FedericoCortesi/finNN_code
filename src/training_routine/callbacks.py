@@ -12,7 +12,16 @@ class VerboseLoss(keras.callbacks.Callback):
         self.start_epoch = time.time()
     def on_epoch_end(self, epoch, logs=None):
         elapsed = time.time() - self.start_epoch
-        now = time.strftime("%H:%M:%S", time.localtime())
+        #now = time.strftime("%H:%M:%S", time.localtime())
         loss = logs.get("loss", float("nan"))
         vloss = logs.get("val_loss", float("nan"))
-        logger.info(f"Epoch {epoch+1:03d} | loss={loss:.12f} | val_loss={vloss:.12f} | {elapsed:.2f}s")
+        da = logs.get("directional_accuracy_pct")
+        vda = logs.get("val_directional_accuracy_pct")
+
+        msg = (f"Epoch {epoch+1:03d} | loss={loss:.12f}"
+               f" | val_loss={vloss:.12f}")
+        if da is not None and vda is not None:
+            msg += f" | diracc={da:.2f}% | val_diracc={vda:.2f}%"
+        msg += f" | {elapsed:.2f}s"
+
+        logger.info(msg)

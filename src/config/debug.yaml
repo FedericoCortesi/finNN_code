@@ -1,7 +1,8 @@
 experiment:
   name: "pippo"
+  type: "price_prediction"
   seed: 1234
-  output_root: "experiments"
+  #output_root: "experiments"
   monitor: "val_loss"
   mode: "min"
 
@@ -27,7 +28,7 @@ walkforward:
 
 # redundant
 trainer:
-  epochs: 50
+  epochs: 100
   batch_size: 1024 # to make it fast
   lr: 1.0e-3
   loss: "mse"

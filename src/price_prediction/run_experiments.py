@@ -26,11 +26,11 @@ def main():
     args = parser.parse_args()
 
     # setup logger
-    info_logger = setup_logger("Experiment", level="INFO")
+    logger = setup_logger("Experiment", level="INFO")
 
     # --- run GPU test once ---
     gpu_test()
-    info_logger.info("GPU check complete.")
+    logger.info("GPU check complete.")
 
 
     # -------- load config --------
@@ -43,7 +43,7 @@ def main():
         cfg["experiment"]["name"] = args.exp_name
 
     # -------- data + components --------
-    info_logger = ExperimentLogger(cfg["experiment"]["name"], cfg)
+    logger = ExperimentLogger(cfg)
 
     # use data path if present
     data_path = cfg.get("data", {}).get("df_path")
@@ -58,7 +58,7 @@ def main():
         wf = WFCVGenerator(config=wf_config)
 
     # instantiate trainer    
-    trainer = Trainer(cfg, info_logger)
+    trainer = Trainer(cfg, logger)
 
     # Only number of rows change, columns stay constant 
     input_shape = cfg["walkforward"]["lags"]

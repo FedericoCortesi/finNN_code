@@ -4,6 +4,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Common subpaths
+SRC_DIR = REPO_ROOT / "src" 
 EXPERIMENTS_DIR = REPO_ROOT / "src" / "price_prediction" / "experiments"
 SMOKE_DIR = REPO_ROOT / "src" / "price_prediction" / "experiments" / "smoke"
 DATA_DIR = REPO_ROOT / "src" / "data"

@@ -1,13 +1,30 @@
 import os, json, time, socket, platform
 from datetime import datetime
-from .paths import EXPERIMENTS_DIR
+from pathlib import Path
+
+from .paths import SRC_DIR
+from .custom_formatter import setup_logger
+
+console_logger = setup_logger("Experiment", level="INFO")
 
 class ExperimentLogger:
-    def __init__(self, exp_name: str, cfg: dict):
+    def __init__(self, cfg: dict):
+        
+        # instantiate cfg
+        self.cfg = cfg
+
+        # create/find for specific type dir
+        exp_type = self.cfg["experiment"]["type"]
+        TYPE_EXPERIMENTS_DIR = SRC_DIR / exp_type / "experiments"
+        
+        if not TYPE_EXPERIMENTS_DIR.exists():
+            TYPE_EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
+            console_logger.warning(f"Directory {TYPE_EXPERIMENTS_DIR} doesn't exist. Check type of experiment")
+
         # find number id first
         existing = [
-            d for d in os.listdir(EXPERIMENTS_DIR)
-            if os.path.isdir(os.path.join(EXPERIMENTS_DIR, d)) and d.startswith("exp_")
+            d for d in os.listdir(TYPE_EXPERIMENTS_DIR)
+            if os.path.isdir(os.path.join(TYPE_EXPERIMENTS_DIR, d)) and d.startswith("exp_")
         ]
         # extract numeric prefix, e.g. exp_012 -> 12
         nums = []
@@ -23,7 +40,8 @@ class ExperimentLogger:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # create experiment directory
-        self.exp_dir = os.path.join(EXPERIMENTS_DIR, f"exp_{next_id:03d}_{ts}_{exp_name}")
+        exp_name = self.cfg["experiment"]["name"]
+        self.exp_dir = os.path.join(TYPE_EXPERIMENTS_DIR, f"exp_{next_id:03d}_{ts}_{exp_name}")
         os.makedirs(self.exp_dir, exist_ok=True)
 
         # file paths

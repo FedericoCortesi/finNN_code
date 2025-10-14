@@ -1,5 +1,5 @@
 experiment:
-  name: "pippo"
+  name: "pippo_early_stopping_10e-12_long_patience_small_batch"
   type: "price_prediction"
   seed: 1234
   #output_root: "experiments"
@@ -29,7 +29,7 @@ walkforward:
 # redundant
 trainer:
   epochs: 100
-  batch_size: 1024 # to make it fast
+  batch_size: 128 # to make it fast
   lr: 1.0e-3
   loss: "mse"
   metrics: ["mae","mse", "dir_acc"]

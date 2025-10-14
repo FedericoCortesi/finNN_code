@@ -1,6 +1,7 @@
 import os, time
 import numpy as np
 from tensorflow import keras
+from .metrics import directional_accuracy_pct
 
 from utils.logging_utils import ExperimentLogger
 from utils.custom_formatter import setup_logger
@@ -10,22 +11,36 @@ class Trainer:
     def __init__(self, cfg: dict, logger: ExperimentLogger):
         self.cfg = cfg 
         self.logger = logger
-        self.console_logger = setup_logger("Trainer")
+        self.console_logger = setup_logger("Trainer", level="INFO")
 
     # compiles model to make it ready to fit data 
     def compile(self, model):
+        # handle dir_acc as its a custom metric
+        cfg_metrics = list(self.cfg["trainer"]["metrics"])
+
+        resolved = []
+        for m in cfg_metrics:
+            if m == "dir_acc" or (isinstance(m, str) and m.lower() == "dir_acc"):
+                resolved.append(directional_accuracy_pct)   # inject the function
+            else:
+                resolved.append(m)
+
+        self.console_logger.debug(f"metrics: {resolved}")
+
         model.compile(optimizer=keras.optimizers.Adam(self.cfg["trainer"]["lr"]),
                       loss=self.cfg["trainer"]["loss"],
-                      metrics=self.cfg["trainer"]["metrics"])
+                      metrics=resolved)
         
 
     def fit_eval_fold(self, 
                       model, 
                       data:tuple, 
                       fold:int,
-                      trial:int=0): 
-        # TODO: fit on test + val after 
-        # TODO: define directional accuracy as a callback method
+                      trial:int=0,
+                      merge_train_val:bool=False): 
+        
+        # TODO: fit on test + val after
+        # TODO: define in sample/oos metrics only
 
         # Get data from input and assing to arrays
         Xtr, ytr, Xv, yv, Xte, yte = data
@@ -38,8 +53,8 @@ class Trainer:
         es = keras.callbacks.EarlyStopping(
                 monitor=self.cfg["experiment"]["monitor"],
                 mode=self.cfg["experiment"]["mode"],
-                patience=10,
-                min_delta = 1e-8, # loss is very small
+                patience=25,
+                min_delta = 1e-12, # loss is very small
                 restore_best_weights=True)
         
         ckpt = keras.callbacks.ModelCheckpoint(
@@ -67,7 +82,7 @@ class Trainer:
         print()
         
         # fit model
-        model.fit(Xtr, ytr, 
+        hist = model.fit(Xtr, ytr, 
                   validation_data=(Xv,yv), # not a problem since temporal order is preserved when building the df, every epoch
                   epochs=self.cfg["trainer"]["epochs"],
                   batch_size=self.cfg["trainer"]["batch_size"],
@@ -78,41 +93,50 @@ class Trainer:
         # elapsed time
         secs = time.time()-t0
 
+        self.console_logger.info("Evaluating...")
         # evaluate on validation and test 
-        tr = model.evaluate(Xtr,ytr,verbose=0) 
-        v = model.evaluate(Xv,yv,verbose=0) 
-        te = model.evaluate(Xte,yte,verbose=0)
+        tr = model.evaluate(Xtr, ytr, verbose=0, return_dict=True) 
+        v  = model.evaluate(Xv,  yv,  verbose=0, return_dict=True) 
+        te = model.evaluate(Xte, yte, verbose=0, return_dict=True)
 
-        # create dictionaries with metrics
-        names = ["loss"] + [m if isinstance(m,str) else m.name for m in model.metrics]
-        trmap = dict(zip(["tr_"+n for n in names], tr))
-        vmap = dict(zip(["val_"+n for n in names], v))
-        temap = dict(zip(["test_"+n for n in names], te))
+        # prefix keys right off the dicts (no manual metric-name plumbing)
+        trmap = {f"tr_{k}": v for k, v in tr.items()}
+        vmap  = {f"val_{k}": v for k, v in v.items()}
+        temap = {f"test_{k}": v for k, v in te.items()}
 
-        # add directional accuracy
-        yhat_tr = model.predict(Xtr, verbose=0).squeeze()
-        yhat_v = model.predict(Xv, verbose=0).squeeze()
-        yhat_te = model.predict(Xte, verbose=0).squeeze()
+        # ----- Best epoch from history (align with your monitor + mode)
+        monitor_key = self.cfg["experiment"]["monitor"]
+        mode = self.cfg["experiment"]["mode"].lower()
+        hist_vals = np.array(hist.history[monitor_key])
+        if mode == "min":
+            best_epoch = int(np.argmin(hist_vals)) + 1  # Keras epochs are 1-based in logs
+        else:
+            best_epoch = int(np.argmax(hist_vals)) + 1
 
-        trmap["tr_diracc"] = np.mean(np.sign(yhat_tr) == np.sign(ytr)) * 100
-        vmap["val_diracc"] = np.mean(np.sign(yhat_v) == np.sign(yv)) * 100
-        temap["test_diracc"] = np.mean(np.sign(yhat_te) == np.sign(yte)) * 100
-        
+ 
         # Print fold results
         print()        
         self.console_logger.info(
-            f" tr_loss={trmap['tr_loss']:.6f} | val_loss={vmap['val_loss']:.6f} | test_loss={temap['test_loss']:.6f}"
-            f" | tr_diracc={trmap['tr_diracc']:.6f} | val_diracc={vmap['val_diracc']:.6f} | test_diracc={temap['test_diracc']:.6f}"
-        )
+        f"\n[selection] tr_loss={trmap.get('tr_loss', np.nan):.6f} | "
+        f"val_loss={vmap.get('val_loss', np.nan):.6f} | "
+        f"test_loss={temap.get('test_loss', np.nan):.6f} | "
+        f"\ntr_mae={trmap.get('tr_mae', np.nan):.6f} | "
+        f"val_mae={vmap.get('val_mae', np.nan):.6f} | "
+        f"test_mae={temap.get('test_mae', np.nan):.6f} | "
+        f"\ntr_diracc={trmap.get('tr_directional_accuracy_pct', np.nan):.2f}% | "
+        f"val_diracc={vmap.get('val_directional_accuracy_pct', np.nan):.2f}% | "
+        f"test_diracc={temap.get('test_directional_accuracy_pct', np.nan):.2f}% | "
+        f"\nbest_epoch={best_epoch}")
         print()        
 
-        self.console_logger.info("Saving model")
+        model_path = f"trial_{trial:03d}/fold_{fold:03d}/model_best.keras"
+        self.console_logger.info(f"Saving model at {model_path}")
         self.logger.append_result(
         trial=trial, fold=fold,
-        tr_loss=trmap["tr_loss"], val_loss=vmap["val_loss"], test_loss=temap["test_loss"],
-        tr_mae=trmap.get("tr_mae",""), val_mae=vmap.get("val_mae",""), test_mae=temap.get("test_mae",""),
-        tr_diracc=trmap.get("tr_diracc",""), val_diracc=vmap.get("val_diracc",""), test_diracc=temap.get("test_diracc",""),
         seconds=secs,
-        model_path=self.logger.path(f"trial_{trial:03d}/fold_{fold:03d}/model_best.keras"))
+        model_path=self.logger.path(model_path),
+        **trmap, **vmap, **temap
+        )
+        
         
         return trmap, vmap, temap

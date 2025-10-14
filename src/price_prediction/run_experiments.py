@@ -26,11 +26,11 @@ def main():
     args = parser.parse_args()
 
     # setup logger
-    logger = setup_logger("Experiment", level="INFO")
+    console_logger = setup_logger("Experiment", level="INFO")
 
     # --- run GPU test once ---
     gpu_test()
-    logger.info("GPU check complete.")
+    console_logger.info("GPU check complete.")
 
 
     # -------- load config --------
@@ -65,6 +65,8 @@ def main():
 
     max_folds = cfg["walkforward"]["max_folds"]
 
+    hparams = cfg["model"]["hparams"]
+
     # -------- train per fold --------
     for fold, data in enumerate(wf.folds()):
         if max_folds is not None and fold >= max_folds:
@@ -73,10 +75,11 @@ def main():
         # can i take this out the for loop or do i risk leakage?
         # better to leave it here so im sure weights are initialized 
         # at each fold
-        model = build_model(cfg["model"]["hparams"], input_shape)
+        model = build_model(hparams, input_shape)
 
         trainer.fit_eval_fold(model, data, trial=0, fold=fold)
 
+    console_logger.warning("Training completed!")
 
 if __name__ == "__main__":
     main()

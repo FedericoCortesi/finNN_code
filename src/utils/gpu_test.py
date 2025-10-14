@@ -1,8 +1,3 @@
-from .custom_formatter import setup_logger
-
-
-info_logger = setup_logger("Trainer")
-
 import ctypes
 import sys
 import tensorflow as tf

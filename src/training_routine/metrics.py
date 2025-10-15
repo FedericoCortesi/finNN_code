@@ -1,10 +1,18 @@
-# src/training/metrics.py
-import tensorflow as tf
-from tensorflow import keras
+import torch
 
-@keras.utils.register_keras_serializable()
-def directional_accuracy_pct(y_true, y_pred):
-    y_true_sign = tf.sign(y_true)
-    y_pred_sign = tf.sign(y_pred)
-    matches = tf.cast(tf.equal(y_true_sign, y_pred_sign), tf.float32)
-    return 100.0 * tf.reduce_mean(matches)
+@torch.no_grad()
+def mae(pred: torch.Tensor, targ: torch.Tensor) -> float:
+    """Mean Absolute Error (MAE)"""
+    return torch.mean(torch.abs(pred - targ)).item()
+
+@torch.no_grad()
+def mse(pred: torch.Tensor, targ: torch.Tensor) -> float:
+    """Mean Squared Error (MSE)"""
+    return torch.mean((pred - targ) ** 2).item()
+
+@torch.no_grad()
+def directional_accuracy_pct(pred: torch.Tensor, targ: torch.Tensor) -> float:
+    """Directional accuracy in percentage (sign match rate)."""
+    ps = torch.sign(pred)
+    ts = torch.sign(targ)
+    return ps.eq(ts).float().mean().item() * 100.0

@@ -1,18 +1,18 @@
+# main_torch.py
 import argparse
 import yaml
 import pandas as pd
 from pathlib import Path
 
 from utils.logging_utils import ExperimentLogger
-from training_routine.trainer import Trainer
+from training_routine.trainer import Trainer            
 from pipeline.walkforward import WFCVGenerator
 from pipeline.wf_config import WFConfig
-from models.mlp import build_model
-from utils.paths import CONFIG_DIR
 from utils.gpu_test import gpu_test
+from utils.paths import CONFIG_DIR
 from utils.custom_formatter import setup_logger
 
-
+from models import create_model 
 
 def main():
     # -------- argparse setup --------
@@ -28,10 +28,9 @@ def main():
     # setup logger
     console_logger = setup_logger("Experiment", level="INFO")
 
-    # --- run GPU test once ---
+    # --- GPU check (PyTorch) ---
     gpu_test()
     console_logger.info("GPU check complete.")
-
 
     # -------- load config --------
     cfg = yaml.safe_load(open(CONFIG_DIR / args.config))
@@ -45,37 +44,39 @@ def main():
     # -------- data + components --------
     logger = ExperimentLogger(cfg)
 
-    # use data path if present
     data_path = cfg.get("data", {}).get("df_path")
 
-    # import wfcv
+    # walk-forward config/generator
     wf_config = WFConfig(**cfg["walkforward"])
-    
     if data_path:
         df = pd.read_parquet(data_path)
         wf = WFCVGenerator(df_long=df, config=wf_config)
     else:
         wf = WFCVGenerator(config=wf_config)
 
-    # instantiate trainer    
+    # instantiate trainer (PyTorch)
     trainer = Trainer(cfg, logger)
 
-    # Only number of rows change, columns stay constant 
-    input_shape = cfg["walkforward"]["lags"]
-
+    # model input size: number of lags (columns are constant across folds)
+    input_shape = cfg["walkforward"]["lags"]            # int is fine; build_model handles it
     max_folds = cfg["walkforward"]["max_folds"]
 
-    hparams = cfg["model"]["hparams"]
+    if cfg["model"]["name"].lower() == "cnn1d":
+        input_shape = (1, cfg["walkforward"]["lags"])  # (C, L)
+    elif cfg["model"]["name"].lower() == "mlp":
+        input_shape = (cfg["walkforward"]["lags"],)
+    else:
+        console_logger.warning(f"Model: {cfg["model"]["name"]} not recognized!")
 
     # -------- train per fold --------
     for fold, data in enumerate(wf.folds()):
         if max_folds is not None and fold >= max_folds:
             break  # allow running subset of folds
 
-        # can i take this out the for loop or do i risk leakage?
-        # better to leave it here so im sure weights are initialized 
-        # at each fold
-        model = build_model(hparams, input_shape)
+        # Keep model creation inside the loop to avoid weight leakage across folds
+        model = create_model(cfg["model"], input_shape)       
+
+        console_logger.critical(f"model: {model}")
 
         trainer.fit_eval_fold(model, data, trial=0, fold=fold)
 

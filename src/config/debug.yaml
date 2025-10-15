@@ -1,5 +1,5 @@
 experiment:
-  name: "pippo_early_stopping_10e-12_long_patience_small_batch"
+  name: "pippo_3layers_no_dropoutl2"
   type: "price_prediction"
   seed: 1234
   #output_root: "experiments"
@@ -26,22 +26,24 @@ walkforward:
   #purge_days: 20
   #embargo_days: 20
 
-# redundant
+# redundant ?
 trainer:
   epochs: 100
-  batch_size: 128 # to make it fast
+  batch_size: 512 # P. said 256-512 to "kill some noise"
   lr: 1.0e-3
   loss: "mse"
   metrics: ["mae","mse", "dir_acc"]
+  weight_decay: 0
+  val_every: 10
   search: False
 
 model:
   name: "mlp"
   hparams:  
-    hidden_sizes: [32, 32] 
-    dropout_rate: 0.2 
-    activation: relu
-    l2_reg: 0.001
+    hidden_sizes: [128, 128, 128] 
+    dropout_rate: 0 
+    activation: [relu, relu, relu]
+    output_activation: linear
     learning_rate: 0.001
     metrics: ["mae","mse"]
 

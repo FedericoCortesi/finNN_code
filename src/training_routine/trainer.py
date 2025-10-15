@@ -1,142 +1,248 @@
 import os, time
 import numpy as np
-from tensorflow import keras
-from .metrics import directional_accuracy_pct
+from typing import Tuple, Dict, Any
+
+import torch
+torch.set_float32_matmul_precision("high")
+torch.backends.cudnn.allow_tf32 = True
+import torch.nn as nn
+import torch.optim as optim
+#import warnings
+#warnings.simplefilter(action="ignore", module=torch)
 
 from utils.logging_utils import ExperimentLogger
 from utils.custom_formatter import setup_logger
-from .callbacks import VerboseLoss
+
+from .metrics import directional_accuracy_pct as _directional_accuracy_pct
+from .metrics import mse as _mse
+from .metrics import mae as _mae
+
 
 class Trainer:
     def __init__(self, cfg: dict, logger: ExperimentLogger):
-        self.cfg = cfg 
+        self.cfg = cfg
         self.logger = logger
         self.console_logger = setup_logger("Trainer", level="INFO")
-
-    # compiles model to make it ready to fit data 
-    def compile(self, model):
-        # handle dir_acc as its a custom metric
-        cfg_metrics = list(self.cfg["trainer"]["metrics"])
-
-        resolved = []
-        for m in cfg_metrics:
-            if m == "dir_acc" or (isinstance(m, str) and m.lower() == "dir_acc"):
-                resolved.append(directional_accuracy_pct)   # inject the function
-            else:
-                resolved.append(m)
-
-        self.console_logger.debug(f"metrics: {resolved}")
-
-        model.compile(optimizer=keras.optimizers.Adam(self.cfg["trainer"]["lr"]),
-                      loss=self.cfg["trainer"]["loss"],
-                      metrics=resolved)
+        self.device = torch.device("cuda")
+        # Fail if cuda (=GPU) not available
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA not available. This trainer requires a GPU.")
         
+        # will be set in compile()
+        self.model = None
+        self.optimizer = None
+        self.loss_fn = None
 
-    def fit_eval_fold(self, 
-                      model, 
-                      data:tuple, 
-                      fold:int,
-                      trial:int=0,
-                      merge_train_val:bool=False): 
-        
-        # TODO: fit on test + val after
-        # TODO: define in sample/oos metrics only
+    # Build optimizer/loss 
+    def compile(self, model: torch.nn.Module):
+        self.model = model.to(self.device)
 
-        # Get data from input and assing to arrays
+        lr = float(self.cfg["trainer"]["lr"])
+        weight_decay = float(self.cfg["trainer"].get("weight_decay", 0.0))
+
+        # loss mapping similar to Keras strings
+        loss_name = str(self.cfg["trainer"]["loss"]).lower()
+        if loss_name in ("mse", "mean_squared_error"):
+            self.loss_fn = nn.MSELoss()
+        elif loss_name in ("mae", "mean_absolute_error", "l1"):
+            self.loss_fn = nn.L1Loss()
+        else:
+            raise ValueError(f"Unsupported loss '{loss_name}'")
+
+        # Separate parameters into two groups:
+        #  - decay: weights of Linear/Conv layers (apply L2 regularization)
+        #  - no_decay: biases and normalization params (skip weight decay)
+        decay, no_decay = [], []
+        for n, p in self.model.named_parameters():
+            if p.requires_grad:
+                # 1D params
+                if p.dim() == 1 or n.endswith("bias"):
+                    no_decay.append(p)
+                else:
+                    decay.append(p)
+
+        # Apply weight decay only to 'decay' group for cleaner regularization
+        self.optimizer = optim.Adam(
+            [{"params": decay, "weight_decay": weight_decay},
+            {"params": no_decay, "weight_decay": 0.0}],
+            lr=lr,
+        )
+        try:
+            self.model = torch.compile(self.model)
+        except Exception:
+            pass
+
+    def _batch_iter(self, X: torch.Tensor, y: torch.Tensor, batch_size: int):
+        n = X.shape[0]
+        for i in range(0, n, batch_size):
+            yield X[i:i+batch_size], y[i:i+batch_size]
+
+    @torch.no_grad()
+    def _evaluate_fold(self, X: np.ndarray, y: np.ndarray) -> Dict[str, float]:
+        """
+        Fuction to evaluate the performance at the end of a fold
+        """
+        self.model.eval()
+        X_t = torch.as_tensor(X, dtype=torch.float32, device=self.device)
+        y_t = torch.as_tensor(y, dtype=torch.float32, device=self.device)
+
+        pred = self.model(X_t).squeeze(-1)
+        loss_val = self.loss_fn(pred, y_t).item()
+
+        return {
+            "loss": loss_val,
+            "mae": _mae(pred, y_t),
+            "mse": _mse(pred, y_t),
+            "directional_accuracy_pct": _directional_accuracy_pct(pred, y_t),
+        }
+
+    def fit_eval_fold(
+        self,
+        model: torch.nn.Module,
+        data: tuple,
+        fold: int,
+        trial: int = 0,
+        merge_train_val: bool = False,  # Should we allow this? If no search we're losing info but unfair comparison with other model
+    ):
+        # Unpack numpy arrays
         Xtr, ytr, Xv, yv, Xte, yte = data
-        
-        # identify directory for the trial 
+
+        # Paths
         fold_dir = self.logger.path(f"trial_{trial:03d}/fold_{fold:03d}/")
         trial_dir = self.logger.path(f"trial_{trial:03d}/")
-        
-        # define callbacks
-        es = keras.callbacks.EarlyStopping(
-                monitor=self.cfg["experiment"]["monitor"],
-                mode=self.cfg["experiment"]["mode"],
-                patience=25,
-                min_delta = 1e-12, # loss is very small
-                restore_best_weights=True)
-        
-        ckpt = keras.callbacks.ModelCheckpoint(
-        filepath=self.logger.path(f"trial_{trial:03d}/fold_{fold:03d}/model_best.keras"),
-        monitor=self.cfg["experiment"]["monitor"],
-        mode=self.cfg["experiment"]["mode"],
-        # This works only for hyperparams tuning, does NOT carry weights
-        # From one fold to the other
-        save_best_only=True, 
-        save_weights_only=False,  # set True if you only want weights (smaller file)
-        verbose=0)
-        
-        cb = [es, ckpt, VerboseLoss()]
-        
-        # compile model passed in the class using built in function
-        self.compile(model)
-        
-        # initial time
-        t0 = time.time()
+        os.makedirs(fold_dir, exist_ok=True)
 
+        # “Early stopping” via best-on-val checkpointing
+        monitor_key = self.cfg["experiment"]["monitor"]  # e.g. 'val_loss', 'val_mae'
+        mode = str(self.cfg["experiment"]["mode"]).lower()  # 'min' or 'max'
+        assert monitor_key.startswith("val_"), "monitor should be a validation metric (e.g., 'val_loss')"
+        val_every = int(self.cfg["trainer"].get("val_every", 10))
+
+        # Prepare tensors
+        Xtr_t = torch.as_tensor(Xtr, dtype=torch.float32, device=self.device)
+        ytr_t = torch.as_tensor(ytr, dtype=torch.float32, device=self.device)
+        Xv_t  = torch.as_tensor(Xv,  dtype=torch.float32, device=self.device)
+        yv_t  = torch.as_tensor(yv,  dtype=torch.float32, device=self.device)
+
+        # Compile (optimizer/loss/device)
+        self.compile(model)
+
+        # define sizes
+        epochs = int(self.cfg["trainer"]["epochs"])
+        batch_size = int(self.cfg["trainer"]["batch_size"])
+
+        # Pre-split batches once (cuts per-iter slicing cost)
+        xb_chunks = torch.split(Xtr_t, batch_size, dim=0)
+        yb_chunks = torch.split(ytr_t, batch_size, dim=0)
+
+        # AMP is optional, keep it off for minimalism; enable if you want:
+        use_amp = True
+        amp_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=use_amp)
+
+        best_val = np.inf if mode == "min" else -np.inf
+        history = []  # store monitor per epoch for compatibility
+
+        t0 = time.time()
         print()
         self.console_logger.info(
             f"Fitting fold {fold:02d} (trial {trial:02d}) "
-            f"on {Xtr.shape[0]} samples, val={Xv.shape[0]}, test={Xte.shape[0]}...")
+            f"on {Xtr.shape[0]} samples, val={Xv.shape[0]}, test={Xte.shape[0]}..."
+        )
         print()
-        
-        # fit model
-        hist = model.fit(Xtr, ytr, 
-                  validation_data=(Xv,yv), # not a problem since temporal order is preserved when building the df, every epoch
-                  epochs=self.cfg["trainer"]["epochs"],
-                  batch_size=self.cfg["trainer"]["batch_size"],
-                  callbacks=cb, 
-                  verbose=0, 
-                  shuffle=False) # maybe doesn't matter for time series?
-        
-        # elapsed time
-        secs = time.time()-t0
 
+        for epoch in range(1, epochs + 1):
+            start_epoch_time = time.time()
+            self.model.train()
+            epoch_loss = 0.0
+            seen = 0
+
+            # manual batching
+            for xb, yb in zip(xb_chunks, yb_chunks):
+                # set gradient to zero otherwise they accumulate
+                self.optimizer.zero_grad(set_to_none=True)
+                with amp_ctx:
+                    pred = self.model(xb).squeeze(-1)
+                    loss = self.loss_fn(pred, yb)
+                loss.backward()
+                self.optimizer.step()
+                bs = xb.shape[0]
+                epoch_loss += loss.detach() * bs
+                seen += bs
+
+            # Validate only every k epochs (default k=10)
+            if epoch % val_every == 0 or epoch == epochs:
+                self.model.eval()
+                with torch.no_grad(), amp_ctx:
+                    vpred = self.model(Xv_t).squeeze(-1)
+                    vloss = self.loss_fn(vpred, yv_t).item()
+
+                history.append(vloss)
+                self.console_logger.info(
+                    f"Epoch {epoch:03d} | loss={epoch_loss/max(seen,1):.12f} "
+                    f"| val_loss={vloss:.6f} | time: {time.time()-start_epoch_time:.3f}s"
+                )
+
+        # get best and write it to disk
+        best_epoch = int(np.argmin(np.array(history))) + 1 if mode == "min" else int(np.argmax(np.array(history))) + 1
+        best_val = history[best_epoch - 1]
+
+        torch.save(
+            {
+                "epoch": best_epoch,
+                "model_state": self.model.state_dict(),
+                "optimizer_state": self.optimizer.state_dict(),
+                "monitor": best_val,
+            },
+            os.path.join(fold_dir, "model_best.pt"),
+        )
+
+        secs = time.time() - t0
         self.console_logger.info("Evaluating...")
-        # evaluate on validation and test 
-        tr = model.evaluate(Xtr, ytr, verbose=0, return_dict=True) 
-        v  = model.evaluate(Xv,  yv,  verbose=0, return_dict=True) 
-        te = model.evaluate(Xte, yte, verbose=0, return_dict=True)
 
-        # prefix keys right off the dicts (no manual metric-name plumbing)
+        # Load best before final eval (optional but consistent with “restore_best_weights”)
+        state = torch.load(os.path.join(fold_dir, "model_best.pt"), map_location=self.device)
+        self.model.load_state_dict(state["model_state"])
+
+        # Evaluate full splits
+        tr = self._evaluate_fold(Xtr, ytr)
+        v  = self._evaluate_fold(Xv,  yv)
+        te = self._evaluate_fold(Xte, yte)
+
+        # Prefix keys
         trmap = {f"tr_{k}": v for k, v in tr.items()}
         vmap  = {f"val_{k}": v for k, v in v.items()}
         temap = {f"test_{k}": v for k, v in te.items()}
 
-        # ----- Best epoch from history (align with your monitor + mode)
-        monitor_key = self.cfg["experiment"]["monitor"]
-        mode = self.cfg["experiment"]["mode"].lower()
-        hist_vals = np.array(hist.history[monitor_key])
+        # Derive best_epoch from tracked history (to mirror your Keras print)
+        # Keras epochs are 1-based; we already used 1-based above.
         if mode == "min":
-            best_epoch = int(np.argmin(hist_vals)) + 1  # Keras epochs are 1-based in logs
+            best_epoch_from_hist = int(np.argmin(np.array(history))) + 1
         else:
-            best_epoch = int(np.argmax(hist_vals)) + 1
+            best_epoch_from_hist = int(np.argmax(np.array(history))) + 1
 
- 
-        # Print fold results
-        print()        
+        print()
         self.console_logger.info(
-        f"\n[selection] tr_loss={trmap.get('tr_loss', np.nan):.6f} | "
-        f"val_loss={vmap.get('val_loss', np.nan):.6f} | "
-        f"test_loss={temap.get('test_loss', np.nan):.6f} | "
-        f"\ntr_mae={trmap.get('tr_mae', np.nan):.6f} | "
-        f"val_mae={vmap.get('val_mae', np.nan):.6f} | "
-        f"test_mae={temap.get('test_mae', np.nan):.6f} | "
-        f"\ntr_diracc={trmap.get('tr_directional_accuracy_pct', np.nan):.2f}% | "
-        f"val_diracc={vmap.get('val_directional_accuracy_pct', np.nan):.2f}% | "
-        f"test_diracc={temap.get('test_directional_accuracy_pct', np.nan):.2f}% | "
-        f"\nbest_epoch={best_epoch}")
-        print()        
+            f"[selection] tr_loss={trmap.get('tr_loss', np.nan):.6f} | "
+            f"val_loss={vmap.get('val_loss', np.nan):.6f} | "
+            f"test_loss={temap.get('test_loss', np.nan):.6f} | "
+            #f"tr_mae={trmap.get('tr_mae', np.nan):.6f} | "
+            #f"val_mae={vmap.get('val_mae', np.nan):.6f} | "
+            #f"test_mae={temap.get('test_mae', np.nan):.6f} | "
+            f"tr_diracc={trmap.get('tr_directional_accuracy_pct', np.nan):.2f}% | "
+            f"val_diracc={vmap.get('val_directional_accuracy_pct', np.nan):.2f}% | "
+            f"test_diracc={temap.get('test_directional_accuracy_pct', np.nan):.2f}% | "
+            f"best_epoch={best_epoch_from_hist}"
+        )
+        print()
 
-        model_path = f"trial_{trial:03d}/fold_{fold:03d}/model_best.keras"
+        model_path = f"trial_{trial:03d}/fold_{fold:03d}/model_best.pt"
         self.console_logger.info(f"Saving model at {model_path}")
         self.logger.append_result(
-        trial=trial, fold=fold,
-        seconds=secs,
-        model_path=self.logger.path(model_path),
-        **trmap, **vmap, **temap
+            trial=trial,
+            fold=fold,
+            seconds=secs,
+            model_path=self.logger.path(model_path),
+            **trmap, **vmap, **temap
         )
-        
-        
+
         return trmap, vmap, temap

@@ -3,27 +3,26 @@ name = "finNN_code"
 version = "0.1.0"
 description = "Neural network training pipeline for financial time series"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
   "numpy",
   "pandas",
-  "pyyaml",
-  "tensorflow>=2.15",
   "pyarrow",
 ]
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-# Point setuptools to the src/ layout
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-# only include the subpackages you mentioned
-include = ["config*", "data*", "pipeline*", "training_price_prediction*", "utils*"]
-
-
-
+include = [
+  "models*",
+  "pipeline*",
+  "price_prediction*",
+  "training_routine*",
+  "utils*",
+]

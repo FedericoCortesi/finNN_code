@@ -68,6 +68,8 @@ def main():
     else:
         console_logger.warning(f"Model: {cfg["model"]["name"]} not recognized!")
 
+    logger.begin_trial()
+
     # -------- train per fold --------
     for fold, data in enumerate(wf.folds()):
         if max_folds is not None and fold >= max_folds:

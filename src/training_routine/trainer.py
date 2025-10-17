@@ -66,6 +66,7 @@ class Trainer:
             [{"params": decay, "weight_decay": weight_decay},
             {"params": no_decay, "weight_decay": 0.0}],
             lr=lr,
+            fused=True
         )
         try:
             self.model = torch.compile(self.model)
@@ -108,9 +109,7 @@ class Trainer:
         Xtr, ytr, Xv, yv, Xte, yte = data
 
         # Paths
-        fold_dir = self.logger.path(f"trial_{trial:03d}/fold_{fold:03d}/")
-        trial_dir = self.logger.path(f"trial_{trial:03d}/")
-        os.makedirs(fold_dir, exist_ok=True)
+        fold_dir = self.logger.path(f"fold_{fold:03d}/")
 
         # “Early stopping” via best-on-val checkpointing
         monitor_key = self.cfg["experiment"]["monitor"]  # e.g. 'val_loss', 'val_mae'
@@ -119,10 +118,10 @@ class Trainer:
         val_every = int(self.cfg["trainer"].get("val_every", 10))
 
         # Prepare tensors
-        Xtr_t = torch.as_tensor(Xtr, dtype=torch.float32, device=self.device)
-        ytr_t = torch.as_tensor(ytr, dtype=torch.float32, device=self.device)
-        Xv_t  = torch.as_tensor(Xv,  dtype=torch.float32, device=self.device)
-        yv_t  = torch.as_tensor(yv,  dtype=torch.float32, device=self.device)
+        Xtr_tensor = torch.as_tensor(Xtr, dtype=torch.float32, device=self.device)
+        ytr_tensor = torch.as_tensor(ytr, dtype=torch.float32, device=self.device)
+        Xv_tensor  = torch.as_tensor(Xv,  dtype=torch.float32, device=self.device)
+        yv_tensor  = torch.as_tensor(yv,  dtype=torch.float32, device=self.device)
 
         # Compile (optimizer/loss/device)
         self.compile(model)
@@ -132,8 +131,8 @@ class Trainer:
         batch_size = int(self.cfg["trainer"]["batch_size"])
 
         # Pre-split batches once (cuts per-iter slicing cost)
-        xb_chunks = torch.split(Xtr_t, batch_size, dim=0)
-        yb_chunks = torch.split(ytr_t, batch_size, dim=0)
+        xb_chunks = torch.split(Xtr_tensor, batch_size, dim=0)
+        yb_chunks = torch.split(ytr_tensor, batch_size, dim=0)
 
         # AMP is optional, keep it off for minimalism; enable if you want:
         use_amp = True
@@ -141,6 +140,7 @@ class Trainer:
 
         best_val = np.inf if mode == "min" else -np.inf
         history = []  # store monitor per epoch for compatibility
+        grad_history = []  # store grads 
 
         t0 = time.time()
         print()
@@ -150,6 +150,8 @@ class Trainer:
         )
         print()
 
+
+        # iterate over epochs
         for epoch in range(1, epochs + 1):
             start_epoch_time = time.time()
             self.model.train()
@@ -169,22 +171,39 @@ class Trainer:
                 epoch_loss += loss.detach() * bs
                 seen += bs
 
+
+
             # Validate only every k epochs (default k=10)
-            if epoch % val_every == 0 or epoch == epochs:
+            # k=1 slower but good for debugging
+            if epoch % val_every == 0 or epoch == epochs or epoch == 1:
                 self.model.eval()
                 with torch.no_grad(), amp_ctx:
-                    vpred = self.model(Xv_t).squeeze(-1)
-                    vloss = self.loss_fn(vpred, yv_t).item()
+                    vpred = self.model(Xv_tensor).squeeze(-1)
+                    vloss = self.loss_fn(vpred, yv_tensor).item()
+                    # average train loss once per epoch (one CPU sync)
+                    tr_loss_avg = (epoch_loss / max(seen, 1)).item()
 
-                history.append(vloss)
+                history.append({"tr_loss":tr_loss_avg, "val_loss":vloss})
                 self.console_logger.info(
                     f"Epoch {epoch:03d} | loss={epoch_loss/max(seen,1):.12f} "
                     f"| val_loss={vloss:.6f} | time: {time.time()-start_epoch_time:.3f}s"
                 )
 
+            # debug grads
+            if epoch % 1 == 0:  # only every 10 epochs to avoid overhead
+                with torch.no_grad():
+                    grad_means = {}
+                    for name, p in self.model.named_parameters():
+                        if p.grad is not None:
+                            grad_means[name] = p.grad.abs().mean().item()
+                    grad_history.append({"epoch": epoch, **grad_means})
+
+
         # get best and write it to disk
-        best_epoch = int(np.argmin(np.array(history))) + 1 if mode == "min" else int(np.argmax(np.array(history))) + 1
-        best_val = history[best_epoch - 1]
+        print(len(history))
+        val_history = [history[e].get("val_loss") for e in range(epochs)]
+        best_epoch = int(np.argmin(np.array(val_history))) + 1 if mode == "min" else int(np.argmax(np.array(val_history))) + 1
+        best_val = history[best_epoch - 1].get("val_loss")
 
         torch.save(
             {
@@ -192,6 +211,8 @@ class Trainer:
                 "model_state": self.model.state_dict(),
                 "optimizer_state": self.optimizer.state_dict(),
                 "monitor": best_val,
+                "history":history,
+                "grad_history":grad_history
             },
             os.path.join(fold_dir, "model_best.pt"),
         )
@@ -213,12 +234,11 @@ class Trainer:
         vmap  = {f"val_{k}": v for k, v in v.items()}
         temap = {f"test_{k}": v for k, v in te.items()}
 
-        # Derive best_epoch from tracked history (to mirror your Keras print)
-        # Keras epochs are 1-based; we already used 1-based above.
+        # Derive best_epoch from tracked history
         if mode == "min":
-            best_epoch_from_hist = int(np.argmin(np.array(history))) + 1
+            best_epoch_from_hist = int(np.argmin(np.array(val_history))) + 1
         else:
-            best_epoch_from_hist = int(np.argmax(np.array(history))) + 1
+            best_epoch_from_hist = int(np.argmax(np.array(val_history))) + 1
 
         print()
         self.console_logger.info(
@@ -235,7 +255,7 @@ class Trainer:
         )
         print()
 
-        model_path = f"trial_{trial:03d}/fold_{fold:03d}/model_best.pt"
+        model_path = f"{fold_dir}/model_best.pt"
         self.console_logger.info(f"Saving model at {model_path}")
         self.logger.append_result(
             trial=trial,

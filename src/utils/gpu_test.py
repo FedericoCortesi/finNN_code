@@ -5,7 +5,7 @@ from utils.custom_formatter import setup_logger
 
 
 def gpu_test():
-    logger = setup_logger("GPU-Test", level="DEBUG")
+    logger = setup_logger("GPU-Test", level="INFO")
 
     logger.debug("=" * 20 + " Running GPU test " + "=" * 20)
     logger.debug(f"PyTorch version: {torch.__version__}")
@@ -27,6 +27,7 @@ def gpu_test():
         logger.debug(f"Active device name: {torch.cuda.get_device_name(current_device)}")
     else:
         logger.error("CUDA not available (torch.cuda.is_available() == False)")
+        sys.exit(1)
 
     # Low-level library test
     try:

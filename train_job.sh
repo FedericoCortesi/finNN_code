@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p mit_normal_gpu            # partition (GPU queue)
-#SBATCH --gres=gpu:h100:1            # request 1 GPU (adjust if needed)
+#SBATCH --gres=gpu:h200:1            # request 1 GPU (adjust if needed)
 #SBATCH --cpus-per-task=8            # number of CPU cores
 #SBATCH --mem=32G                    # memory
 #SBATCH --time=06:00:00              # walltime (8 hours)
@@ -16,7 +16,6 @@ source ~/.bashrc
 
 # Load Anaconda Module
 module load miniforge
-conda activate conda_env
 
 # go to your project directory
 cd /orcd/home/002/corte911/code/finNN_code
@@ -38,4 +37,4 @@ cd /orcd/home/002/corte911/code/finNN_code
 #):${LD_LIBRARY_PATH}"
 
 # === run your python script ===
-python -u src/price_prediction/run_experiments.py
+python -u src/run_experiments.py --config debug.yaml

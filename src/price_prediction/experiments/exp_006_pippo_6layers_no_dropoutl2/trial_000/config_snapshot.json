@@ -1,0 +1,93 @@
+{
+  "cfg": {
+    "experiment": {
+      "name": "pippo_6layers_no_dropoutl2",
+      "type": "price_prediction",
+      "seed": 1234,
+      "monitor": "val_loss",
+      "mode": "min"
+    },
+    "data": {
+      "target_col": "y",
+      "feature_cols": [
+        "feature_0",
+        "feature_1",
+        "feature_2",
+        "feature_3",
+        "feature_4",
+        "feature_5",
+        "feature_6",
+        "feature_7",
+        "feature_8",
+        "feature_9",
+        "feature_10",
+        "feature_11",
+        "feature_12",
+        "feature_13",
+        "feature_14",
+        "feature_15",
+        "feature_16",
+        "feature_17",
+        "feature_18",
+        "feature_19"
+      ],
+      "standardize": true,
+      "per_asset_norm": true
+    },
+    "walkforward": {
+      "max_folds": null,
+      "step": 251,
+      "ratio_train": 3,
+      "ratio_val": 1,
+      "ratio_test": 1,
+      "lags": 20
+    },
+    "trainer": {
+      "epochs": 100,
+      "batch_size": 512,
+      "lr": 0.001,
+      "loss": "mse",
+      "metrics": [
+        "mae",
+        "mse",
+        "dir_acc"
+      ],
+      "weight_decay": 0,
+      "val_every": 10,
+      "search": false
+    },
+    "model": {
+      "name": "mlp",
+      "hparams": {
+        "hidden_sizes": [
+          256,
+          256,
+          256,
+          256,
+          256,
+          256
+        ],
+        "dropout_rate": 0,
+        "activation": [
+          "relu",
+          "relu",
+          "relu",
+          "relu",
+          "relu",
+          "relu"
+        ],
+        "output_activation": "linear",
+        "learning_rate": 0.001,
+        "metrics": [
+          "mae",
+          "mse"
+        ]
+      }
+    }
+  },
+  "env": {
+    "host": "node3200",
+    "platform": "Linux-4.18.0-372.9.1.el8.x86_64-x86_64-with-glibc2.28",
+    "time": "20251015_172027"
+  }
+}

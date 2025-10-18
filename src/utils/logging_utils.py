@@ -5,6 +5,7 @@ import platform
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
+from dataclasses import asdict
 
 from utils.custom_formatter import setup_logger
 
@@ -38,11 +39,12 @@ class ExperimentLogger:
         self.console_logger = console_logger or setup_logger("ExperimentLogger", level="INFO")
 
         # Base experiments dir by type
-        exp_type = self.cfg["experiment"]["type"]
+        self.exp = self.cfg.experiment
+        exp_type = self.exp.type
         self.type_experiments_dir: Path = Path(SRC_DIR) / exp_type / "experiments"
         self.type_experiments_dir.mkdir(parents=True, exist_ok=True)
         # get name
-        exp_name = self.cfg["experiment"]["name"]
+        exp_name = self.exp.name
 
         # ---- try to reuse an existing experiment with the same name ----
         existing_dirs = [
@@ -61,6 +63,7 @@ class ExperimentLogger:
             self.exp_dir: Path = existing_dirs[0]
             self.console_logger.warning(
                 f"Experiment with name '{exp_name}' already exists: {self.exp_dir}. "
+                f"If the experiment is of type `search`, 'trial_serch_best' will be overwritten!"
                 f"Creating a new trial under this experiment."
             )
         else:
@@ -90,14 +93,26 @@ class ExperimentLogger:
 
     # ---- trial lifecycle -----------------------------------------------------
 
-    def begin_trial(self) -> str:
+    def begin_trial(self, name= None) -> str:
         """
         Create a new trial subdir 'trial_{YYYYMMDD_HHMMSS}' and initialize
         results.csv, metadata.jsonl, config_snapshot.json.
+        if `name` is passed, then creates a subdir 'trial_{name}' with appropriate formatting
         Returns trial directory path (str).
         """
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.trial_dir = self.exp_dir / f"trial_{ts}"
+        time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if name is None: 
+            id =  time 
+        else: 
+            if isinstance(name, str):
+                id = name.lower().replace(" ", "_")
+            elif isinstance(name, int):
+                id = format(name, "03d")
+            else:
+                self.console_logger.warning(f"Type {type(name)} not supported for name: {name}")
+                raise ValueError
+            
+        self.trial_dir = self.exp_dir / f"trial_{id}"
         self.trial_dir.mkdir(parents=True, exist_ok=True)
 
         # File paths for this trial
@@ -105,30 +120,18 @@ class ExperimentLogger:
         self.meta_path = self.trial_dir / "metadata.jsonl"
 
         # Initialize results.csv header
-        with open(self.results_csv, "w") as f:
-            f.write(
-                "trial,fold,"
-                "tr_loss,val_loss,test_loss,"
-                "tr_mae,val_mae,test_mae,"
-                "tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,"
-                "seconds,model_path\n"
-            )
+        if not os.path.exists(self.results_csv):
+            with open(self.results_csv, "w") as f:
+                f.write(
+                    "trial,fold,"
+                    "tr_loss,val_loss,test_loss,"
+                    "tr_mae,val_mae,test_mae,"
+                    "tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,"
+                    "seconds,model_path\n"
+                )
 
         # Save config + small env stamp (per trial)
-        with open(self.trial_dir / "config_snapshot.json", "w") as f:
-            json.dump(
-                {
-                    "cfg": self.cfg,
-                    "env": {
-                        "host": socket.gethostname(),
-                        "platform": platform.platform(),
-                        "time": ts,
-                    },
-                },
-                f,
-                indent=2,
-            )
-
+        # Moved to path 
         self.console_logger.info(f"Trial directory: {self.trial_dir}")
         return str(self.trial_dir)
 
@@ -179,8 +182,27 @@ class ExperimentLogger:
         
         p = self.trial_dir.joinpath(*parts)
         p.parent.mkdir(parents=True, exist_ok=True)
-        self.console_logger.debug(f"fold_dir: {p}")
+        self.console_logger.debug(f"fold_dir: {os.path.basename(p)}")
         if str(p).endswith("/") or p.suffix == "":
             p.mkdir(parents=True, exist_ok=True)
+        # Save config + small env stamp (per trial)
+        if "fold" in str(os.path.basename(p)): 
+            time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            with open(p / "config_snapshot.json", "w") as f:
+                cfg_dict = asdict(self.cfg)
+                json.dump(
+                    {
+                        "cfg": cfg_dict,
+                        "env": {
+                            "host": socket.gethostname(),
+                            "platform": platform.platform(),
+                            "time": time,
+                        },
+                    },
+                    f,
+                    indent=2,
+                )
+
+
 
         return str(p)

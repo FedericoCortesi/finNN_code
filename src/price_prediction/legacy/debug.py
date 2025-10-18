@@ -88,9 +88,6 @@ if __name__ == "__main__":
 
     for fold in range(config.folds):
         # Just because it stopped there last iteration
-        # TODO: REMOVE!!!!!
-        if fold < 6:
-            continue
 
         print(f"\n===== Processing Fold {fold} =====\n")
         

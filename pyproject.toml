@@ -21,6 +21,8 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = [
   "models*",
+  "config*",
+  "hyperparams_search*",
   "pipeline*",
   "price_prediction*",
   "training_routine*",

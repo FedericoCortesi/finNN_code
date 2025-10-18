@@ -18,8 +18,8 @@ def create_model(model_cfg: Dict[str, Any], input_shape: Tuple[int, ...]) -> nn.
     Factory: expects config like {"name": "mlp", "hparams": {...}}.
     Returns an instantiated nn.Module.
     """
-    name = model_cfg["name"].lower()
-    hparams = model_cfg.get("hparams", {})
+    name = model_cfg.name.lower()
+    hparams = model_cfg.hparams
     if name not in _MODEL_REGISTRY:
         # Lazy-import common modules to avoid circular imports
         # (only import once; registry will be populated via decorators)

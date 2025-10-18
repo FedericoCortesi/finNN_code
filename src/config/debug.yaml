@@ -1,11 +1,11 @@
 experiment:
   name: "pippo_6layers_no_dropoutl2"
   type: "price_prediction"
-  seed: 1234
+  random_state: 1234
   #output_root: "experiments"
   monitor: "val_loss"
   mode: "min"
-  trial: 0
+  hyperparams_search: False
 
 data:
   # df_path: "data/sp500_daily_data.parquet" # if left out the pipeline takes it automatically
@@ -28,14 +28,15 @@ walkforward:
   #embargo_days: 20
 
 trainer:
-  epochs: 50
-  batch_size: 512 # P. said 256-512 to "kill some noise"
-  lr: 1.0e-3
-  loss: "mse"
-  metrics: ["mae","mse", "dir_acc"]
-  weight_decay: 0
-  val_every: 1
-  search: False
+  hparams:
+    epochs: 50
+    batch_size: 512 # P. said 256-512 to "kill some noise"
+    lr: 1.0e-3
+    loss: "mse"
+    metrics: ["mae","mse", "dir_acc"]
+    weight_decay: 0
+    val_every: 1
+    search: False
 
 model:
   name: "mlp"
@@ -45,5 +46,3 @@ model:
     activation: [relu, relu, relu, relu, relu, relu]
     output_activation: linear
     learning_rate: 0.001
-    metrics: ["mae","mse"]
-

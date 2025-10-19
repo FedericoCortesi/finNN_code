@@ -1,14 +1,15 @@
-from dataclasses import dataclass
-from pathlib import Path
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+#from sklearn.preprocessing import StandardScaler
 
 
-from typing import Callable, Dict, Tuple, List
+import ast
+from pathlib import Path
+from collections.abc import Sequence
+from typing import Callable, Dict, Tuple, List, Optional
 
 from pipeline.preprocessing import preprocess
-from pipeline.wf_config import WFConfig
+from config.config_types import WFConfig
 
 from utils.custom_formatter import setup_logger
 
@@ -16,34 +17,59 @@ from utils.custom_formatter import setup_logger
 class WFCVGenerator:
     def __init__(
         self,
-        config:WFConfig,
-        id_col: str = "permno", 
-        df_long: pd.DataFrame = pd.DataFrame({}),                  # preprocessed long df
+        config: WFConfig,
+        id_col: str = "permno",
+        df_long: Optional[pd.DataFrame] = None,   # None => call preprocess()
         time_col: str = "t",
-        value_cols: List[str] = ["ret", "volume"],      
-        target_col: str = "ret",                        # e.g. "ret" or "close_lead1"
-        scaler_factory: Callable = StandardScaler.fit_transform,
+        value_cols: Tuple[str, ...] = ("ret",),   # immutable, if you keep it
+        target_col: str = "ret",
+        scaler_factory: Optional[Callable[[], object]] = None,  # or remove
     ):
-        self.df = df_long.copy()
+        self.console_logger = setup_logger("WFCVGenerator", "INFO")
+        self.config = config
+        self.console_logger.debug(self.config.summary())
+
         self.id_col, self.time_col = id_col, time_col
         self.value_cols, self.target_col = value_cols, target_col
-        self.config = config
         self.scaler_factory = scaler_factory
 
-        # build wide dict once (cheap, readable)
-        if df_long.size == 0:
-            self.df = preprocess()[["t", "ret", "permno"]].copy()
+        self.df = self._load_df(df_long)  # validated & trimmed
 
-        # define number of trading days
-        self.T = self.df["t"].nunique()    
-
-        # Call important functions
+        # now safe to proceed
+        self.T = self.df[self.time_col].nunique()
         self.stamps_and_windows_array = self._make_windows()
-        self.df_master = self._build_master_df() 
+        self.df_master = self._build_master_df()
 
-        # setup info logger
-        self.info_logger = setup_logger("WFCVGenerator", "INFO")
-        self.info_logger.debug(self.config.summary())
+    def _load_df(self, df_long: Optional[pd.DataFrame]) -> pd.DataFrame:
+        if df_long is None:
+            self.console_logger.debug("Loading data via preprocess()")
+            df = preprocess()[["t", "ret", "permno"]].copy()
+        else:
+            if df_long.empty:
+                raise ValueError("df_long was provided but is empty.")
+            df = df_long.copy()
+
+        # validate required columns
+        required = {"t", "ret", "permno"}
+        missing = required - set(df.columns)
+        if missing:
+            raise KeyError(f"Missing required columns: {missing}")
+
+        # select & enforce dtypes
+        df = df[["t", "ret", "permno"]].copy()
+        df["t"] = pd.to_numeric(df["t"], errors="raise", downcast="integer")
+        df["ret"] = pd.to_numeric(df["ret"], errors="raise")
+        # permno often fits in int32; keep as object-safe if needed
+        if not pd.api.types.is_integer_dtype(df["permno"]):
+            df["permno"] = pd.to_numeric(df["permno"], errors="raise", downcast="integer")
+
+        # basic log: shape + dtypes + head
+        self.console_logger.debug(
+            "Loaded df: shape=%s dtypes=%s head=\n%s",
+            df.shape, df.dtypes.to_dict(), df.head(3).to_string(index=False)
+        )
+        return df
+
 
 
 
@@ -122,11 +148,13 @@ class WFCVGenerator:
 
     def _build_master_df(
             self, 
-            t_col="t" 
             ) -> pd.DataFrame:
         
         # Obtain windows 
         windows = self.stamps_and_windows_array[6].copy()
+
+        assert not self.df.duplicated([self.id_col, self.time_col]).any(), \
+       "Duplicate (permno, t) rows before pivot."
 
 
         # 1) Wide once: rows=permno, cols=t (sorted) 
@@ -184,35 +212,127 @@ class WFCVGenerator:
         return df_base
 
 
-    def obtain_datasets_fold(self, fold:int):
+    def obtain_datasets_fold(self, fold:int, df_master: pd.DataFrame | None=None):
         """
-        Given a number of fold, returns the train val and test dataframe  
+        Given a fold index, return (df_train, df_val, df_test).
+        Accepts an optional external df_master with columns: feature_*, y, window.
         """
+        if not (0 <= fold < getattr(self, "folds_count", 0)):
+            raise IndexError(f"Fold {fold} out of range [0, {self.folds_count-1}].")
 
         # Back out windows
         train_stamps, train_windows, val_stamps, val_windows, test_stamps, test_windows, all_windows = self.stamps_and_windows_array
 
-        # Build master df
-        df_master = self.df_master.copy()
+        # choose master df (internal or provided)
+        base = (df_master.copy() if df_master is not None else self.df_master.copy())
 
-        # make the dataframes
-        df_train = df_master[df_master["window"].isin(train_windows[fold])].drop(columns="window")
-        df_val = df_master[df_master["window"].isin(val_windows[fold])].drop(columns="window")
-        df_test = df_master[df_master["window"].isin(test_windows[fold])].drop(columns="window")
+        # sanity: required columns
+        required = {"y", "window"}
+        missing = required - set(base.columns)
+        if missing:
+            raise KeyError(f"Provided DataFrame missing required columns: {missing}")
+        
+        base = self._normalize_window_col(base)
+
+        # slice by windows for this fold
+        tw, vw, tew = train_windows[fold], val_windows[fold], test_windows[fold]
+        df_train = base[base["window"].isin(tw)].drop(columns="window")
+        df_val   = base[base["window"].isin(vw)].drop(columns="window")
+        df_test  = base[base["window"].isin(tew)].drop(columns="window")
+
+        # optional: warn on empties
+        if df_train.empty or df_val.empty or df_test.empty:
+            self.console_logger.warning(
+                f"Fold {fold}: empty split(s). "
+                f"train={len(df_train)}, val={len(df_val)}, test={len(df_test)}"
+            )
 
         return df_train, df_val, df_test
-    
-    def folds(self):
-        """Yield train/val/test arrays for each fold."""
-        for fold in range(self.folds_count):
-            df_train, df_val, df_test = self.obtain_datasets_fold(fold)
 
-            Xtr, ytr = df_train.drop(columns=["y"]).values, df_train["y"].values
-            Xv, yv   = df_val.drop(columns=["y"]).values,   df_val["y"].values
-            Xte, yte = df_test.drop(columns=["y"]).values,  df_test["y"].values
+    def _normalize_window_col(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Ensure df['window'] contains 2-tuples of ints: (a, b).
+        Accepts tuples, lists, NumPy arrays (shape (2,) or (1,2)), Pandas arrays/Series,
+        and strings like '(0, 20)' or '[0, 20]'. Raises on anything else.
+        """
+        if "window" not in df.columns:
+            raise KeyError("Expected column 'window' in the provided DataFrame.")
+
+        def to_tuple(x):
+            # Treat missing as error (you can decide to drop/forward-fill instead)
+            if x is None or (isinstance(x, float) and np.isnan(x)):
+                raise ValueError("Found missing value in 'window' column.")
+
+            # Fast path: already a 2-tuple
+            if isinstance(x, tuple) and len(x) == 2:
+                return (int(x[0]), int(x[1]))
+
+            # Generic 2-length sequence (but not str)
+            if isinstance(x, np.ndarray) and not isinstance(x, (str, bytes)):
+                # Convert any sequence-like (list, pd.Series, pd.Array, etc.) to 1D array
+                arr = np.asarray(x).ravel()
+                if arr.shape == (2,):
+                    return (int(arr[0]), int(arr[1]))
+
+            # Strings: try literal_eval into list/tuple, then recurse to the sequence branch
+            if isinstance(x, str):
+                try:
+                    y = ast.literal_eval(x)
+                    arr = np.asarray(y).ravel()
+                    if arr.shape == (2,):
+                        return (int(arr[0]), int(arr[1]))
+                except Exception:
+                    pass  # fall through to error
+
+
+            raise ValueError(
+                f"Unrecognized window value {x!r}. Expected a 2-length sequence "
+                f"(tuple/list/array/Series) or a string like '(a, b)'."
+            )
+
+        out = df.copy()
+        # Use list comprehension for clearer exceptions and speed
+        out["window"] = [to_tuple(v) for v in out["window"].to_numpy()]
+        return out
+
+        
+    def _feature_cols(self, df: pd.DataFrame) -> list[str]:
+        """
+        Return feature columns ordered by numeric suffix: feature_0, feature_1, ...
+        """
+        cols = [c for c in df.columns if c.startswith("feature_")]
+        if not cols:
+            raise KeyError("No 'feature_*' columns found.")
+        try:
+            cols_sorted = sorted(cols, key=lambda c: int(c.split("_")[1]))
+        except Exception:
+            cols_sorted = sorted(cols)  # fallback alphabetical
+        return cols_sorted
+
+    
+    def folds(self, df_master: pd.DataFrame | None = None):
+        """
+        Yield (Xtr, ytr, Xv, yv, Xte, yte) for each fold.
+        If df_master is provided, it must have columns: feature_*, y, window.
+        """
+        # pick master df and normalize/check once
+        base = (df_master.copy() if df_master is not None else self.df_master.copy())
+        base = self._normalize_window_col(base)
+        feat_cols = self._feature_cols(base)
+
+        for fold in range(self.folds_count):
+            df_train, df_val, df_test = self.obtain_datasets_fold(fold, df_master=base)
+
+            if df_train.empty or df_val.empty or df_test.empty:
+                self.console_logger.warning(f"Skipping fold {fold} due to empty split.")
+                continue
+
+            # build arrays in consistent column order
+            Xtr, ytr = df_train[feat_cols].to_numpy(dtype=np.float64), df_train["y"].to_numpy()
+            Xv,  yv  = df_val[feat_cols].to_numpy(dtype=np.float64),   df_val["y"].to_numpy()
+            Xte, yte = df_test[feat_cols].to_numpy(dtype=np.float64),  df_test["y"].to_numpy()
 
             yield Xtr, ytr, Xv, yv, Xte, yte
-
 
 
 

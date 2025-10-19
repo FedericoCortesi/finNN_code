@@ -14,5 +14,6 @@ CONFIG_DIR = REPO_ROOT / "src" / "config"
 
 # Example specific datasets
 SP500_PATH = DATA_DIR / "sp500_daily_data.parquet"
+SP500COPY_PATH = DATA_DIR / "sp500_daily_data_copy.parquet" # for debugging
 PERMNOS_PATH = DATA_DIR / "permnos_list.txt"
 INFO_PATH = DATA_DIR / "permnos_info.csv"

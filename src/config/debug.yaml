@@ -1,5 +1,5 @@
 experiment:
-  name: "pippo_6layers_no_dropoutl2"
+  name: "mlp_nonlinreg"
   type: "price_prediction"
   random_state: 1234
   #output_root: "experiments"
@@ -7,15 +7,15 @@ experiment:
   mode: "min"
   hyperparams_search: False
 
-data:
+# this whole thing might be useless
+data: 
   # df_path: "data/sp500_daily_data.parquet" # if left out the pipeline takes it automatically
+  df_master: "dfmaster_nl.parquet" # if left out the pipeline takes it automatically
   target_col: "y"
-  feature_cols: ['feature_0', 'feature_1', 'feature_2', 'feature_3', 'feature_4',
-        'feature_5', 'feature_6', 'feature_7', 'feature_8', 'feature_9',
-        'feature_10', 'feature_11', 'feature_12', 'feature_13', 'feature_14',
-        'feature_15', 'feature_16', 'feature_17', 'feature_18', 'feature_19']
-  standardize: true
-  per_asset_norm: true
+  #feature_cols: ['feature_0', 'feature_1', 'feature_2', 'feature_3', 'feature_4', 
+  #      'feature_5', 'feature_6', 'feature_7', 'feature_8', 'feature_9',
+  #      'feature_10', 'feature_11', 'feature_12', 'feature_13', 'feature_14',
+  #      'feature_15', 'feature_16', 'feature_17', 'feature_18', 'feature_19']
 
 walkforward:
   max_folds: 

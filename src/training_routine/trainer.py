@@ -172,15 +172,12 @@ class Trainer:
         t0 = time.time()
         if Xv_tensor is not None:
             msg = f"Fitting fold {fold:02d} (trial {trial:02d}) " \
-                f"on {Xtr_tensor.shape[0]} samples, val {Xv_tensor.shape[0]}, test {Xte_tensor.shape[0]}"
+                f"on {Xtr_tensor.shape} samples, val {Xv_tensor.shape}, test {Xte_tensor.shape}"
         else:
             msg = f"Fitting fold {fold:02d} (trial {trial:02d}) " \
-                f"on train+val {Xtr_tensor.shape[0]} samples, test {Xte_tensor.shape[0]}"
+                f"on train+val {Xtr_tensor.shape} samples, test {Xte_tensor.shape}"
 
-
-        print("-"*150)
         self.console_logger.info(msg)
-        print("-"*150)
 
 
         # iterate over epochs
@@ -208,9 +205,9 @@ class Trainer:
 
             # Validate only every k epochs (default k=10)
             # k=1 slower but good for debugging 
-            # TODO: take if not merge_train_val, less
+            # TODO: take out if not merge_train_val, less
             # computation on cpu is better. This is 
-            # slow as hell  .        
+            # slow as hell.        
             if not merge_train_val:
                 if epoch % val_every == 0 or epoch == epochs or epoch == 1:
                     self.model.eval()

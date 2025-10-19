@@ -1,5 +1,6 @@
 import argparse
 from functools import partial
+import pandas as pd
 import optuna
 from optuna.pruners import SuccessiveHalvingPruner
 from optuna.samplers import TPESampler
@@ -14,7 +15,7 @@ from hyperparams_search.search_utils import optuna_objective, sample_hparams_int
 #from hyperparams_search.randomsearch import RandomSearch
 
 from utils.gpu_test import gpu_test
-from utils.paths import CONFIG_DIR
+from utils.paths import CONFIG_DIR, DATA_DIR
 from utils.custom_formatter import setup_logger
 from models import create_model 
 
@@ -46,18 +47,17 @@ def main():
 
     # Override config with CLI args if provided
     if args.data:
-        cfg["data"]["df_path"] = args.data
+        cfg.data["df_path"] = args.data
     if args.exp_name:
-        cfg["experiment"]["name"] = args.exp_name
+        cfg.experiment["name"] = args.exp_name
 
 
     # -------- data + components --------
     #logger = ExperimentLogger(cfg)
-    data_path = cfg.data.get("df_path")
+    #data_path = cfg.data.get("df_path")
 
-    if data_path:
-        import pandas as pd
-        df = pd.read_parquet(data_path)
+    if args.data:
+        df = pd.read_parquet(args.data)
         wf = WFCVGenerator(df_long=df, config=cfg.walkforward)
     else:
         wf = WFCVGenerator(config=cfg.walkforward)
@@ -89,8 +89,14 @@ def main():
         trainer = Trainer(cfg, logger)
         logger.begin_trial()
 
+    # See if a there is a df_master in the config file
+    if cfg.data["df_master"] is not None:
+        df_master_path =  cfg.data["df_master"]
+        df_master = pd.read_parquet(f"{DATA_DIR}/{df_master_path}")
+        console_logger.debug(f"provided df master: {df_master_path}\n{df_master.head()}")
+
     # -------- train per fold --------
-    for fold, data in enumerate(wf.folds()):
+    for fold, data in enumerate(wf.folds(df_master=df_master)):
         if max_folds is not None and fold >= max_folds:
             break  # allow running subset of folds
 

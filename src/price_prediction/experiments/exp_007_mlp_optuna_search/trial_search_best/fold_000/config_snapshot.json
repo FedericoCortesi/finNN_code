@@ -4,14 +4,32 @@
       "name": "mlp",
       "hparams": {
         "output_activation": "linear",
-        "dropout_rate": 0.07799726016810132,
+        "dropout_rate": 0.4744427686266666,
         "activation": "relu",
-        "n_layers": 1,
+        "n_layers": 10,
         "n_hidden": [
-          896
+          840,
+          356,
+          157,
+          721,
+          486,
+          181,
+          539,
+          97,
+          937,
+          312
         ],
         "hidden_sizes": [
-          896
+          840,
+          356,
+          157,
+          721,
+          486,
+          181,
+          539,
+          97,
+          937,
+          312
         ]
       },
       "search": {
@@ -52,8 +70,8 @@
         ],
         "loss": "mse",
         "val_every": 1,
-        "lr": 0.0003807947176588889,
-        "weight_decay": 0.009507143064099163
+        "lr": 0.0005964904231734221,
+        "weight_decay": 0.00046450412719997725
       },
       "search": {
         "lr": {
@@ -84,7 +102,7 @@
       "monitor": "val_loss",
       "mode": "min",
       "type": "price_prediction",
-      "n_trials": 3,
+      "n_trials": 5,
       "random_state": 42
     },
     "data": {
@@ -115,8 +133,8 @@
     }
   },
   "env": {
-    "host": "node3301",
+    "host": "node3400",
     "platform": "Linux-4.18.0-372.9.1.el8.x86_64-x86_64-with-glibc2.28",
-    "time": "20251018_180036"
+    "time": "20251018_202512"
   }
 }

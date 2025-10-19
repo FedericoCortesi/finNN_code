@@ -90,7 +90,7 @@
       "monitor": "val_loss",
       "mode": "min",
       "type": "price_prediction",
-      "n_trials": 3,
+      "n_trials": 5,
       "random_state": 42
     },
     "data": {
@@ -121,8 +121,8 @@
     }
   },
   "env": {
-    "host": "node3301",
+    "host": "node3400",
     "platform": "Linux-4.18.0-372.9.1.el8.x86_64-x86_64-with-glibc2.28",
-    "time": "20251018_180520"
+    "time": "20251018_203053"
   }
 }

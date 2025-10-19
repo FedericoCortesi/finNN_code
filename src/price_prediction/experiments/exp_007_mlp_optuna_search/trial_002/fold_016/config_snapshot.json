@@ -1,0 +1,128 @@
+{
+  "cfg": {
+    "model": {
+      "name": "mlp",
+      "hparams": {
+        "output_activation": "linear",
+        "dropout_rate": 0.14607232426760908,
+        "activation": "gelu",
+        "n_layers": 4,
+        "n_hidden": [
+          502,
+          818,
+          255,
+          558
+        ],
+        "hidden_sizes": [
+          502,
+          818,
+          255,
+          558
+        ]
+      },
+      "search": {
+        "dropout_rate": {
+          "low": 0.0,
+          "high": 0.5,
+          "log": false,
+          "type": "float"
+        },
+        "activation": {
+          "choices": [
+            "relu",
+            "gelu",
+            "tanh"
+          ],
+          "type": "cat"
+        },
+        "n_layers": {
+          "low": 1,
+          "high": 10,
+          "type": "int"
+        },
+        "n_hidden": {
+          "low": 64,
+          "high": 1024,
+          "type": "int"
+        }
+      }
+    },
+    "trainer": {
+      "hparams": {
+        "epochs": 50,
+        "batch_size": 512,
+        "metrics": [
+          "mae",
+          "mse",
+          "dir_acc"
+        ],
+        "loss": "mse",
+        "val_every": 1,
+        "lr": 0.0005295088673159155,
+        "weight_decay": 0.004319450186421158
+      },
+      "search": {
+        "lr": {
+          "low": 1e-05,
+          "high": 0.001,
+          "log": false,
+          "type": "float"
+        },
+        "weight_decay": {
+          "low": 0,
+          "high": 0.01,
+          "log": false,
+          "type": "float"
+        }
+      }
+    },
+    "walkforward": {
+      "ratio_train": 3,
+      "ratio_val": 1,
+      "ratio_test": 1,
+      "step": 251,
+      "lags": 20,
+      "max_folds": null
+    },
+    "experiment": {
+      "name": "mlp_optuna_search",
+      "hyperparams_search": true,
+      "monitor": "val_loss",
+      "mode": "min",
+      "type": "price_prediction",
+      "n_trials": 5,
+      "random_state": 42
+    },
+    "data": {
+      "target_col": "y",
+      "feature_cols": [
+        "feature_0",
+        "feature_1",
+        "feature_2",
+        "feature_3",
+        "feature_4",
+        "feature_5",
+        "feature_6",
+        "feature_7",
+        "feature_8",
+        "feature_9",
+        "feature_10",
+        "feature_11",
+        "feature_12",
+        "feature_13",
+        "feature_14",
+        "feature_15",
+        "feature_16",
+        "feature_17",
+        "feature_18",
+        "feature_19"
+      ],
+      "standardize": true
+    }
+  },
+  "env": {
+    "host": "node3400",
+    "platform": "Linux-4.18.0-372.9.1.el8.x86_64-x86_64-with-glibc2.28",
+    "time": "20251018_210327"
+  }
+}

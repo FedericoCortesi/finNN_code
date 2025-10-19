@@ -1,11 +1,11 @@
 
 experiment:
-  name: mlp_optuna_search
+  name: mlp_optuna_search_more_data
   type: "price_prediction"
   hyperparams_search: True
   monitor: val_loss
   mode: min
-  n_trials: 3 # for random search 
+  n_trials: 5 # for random search 
   random_state: 42 # for reproducibility
 
 
@@ -20,7 +20,7 @@ data:
 
 walkforward:
   max_folds: 
-  step: 251
+  step: 502
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1

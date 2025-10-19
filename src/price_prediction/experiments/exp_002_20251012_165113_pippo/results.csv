@@ -1,0 +1,3 @@
+trial,fold,tr_loss,val_loss,test_loss,tr_mae,val_mae,test_mae,tr_diracc,val_diracc,test_diracc,seconds,model_path
+0,0,0.022434819489717484,0.014355753548443317,0.011877520009875298,,,,48.29572744813352,52.22820572855693,50.95116127631864,7.955546140670776,/orcd/home/002/corte911/code/finNN_code/src/price_prediction/experiments/exp_002_20251012_165113_pippo/trial_000/fold_000/model_best.keras
+0,1,0.019060835242271423,0.011761249043047428,0.011185483075678349,,,,49.52718352506995,50.95116127631864,50.17058032032641,7.559119462966919,/orcd/home/002/corte911/code/finNN_code/src/price_prediction/experiments/exp_002_20251012_165113_pippo/trial_000/fold_001/model_best.keras

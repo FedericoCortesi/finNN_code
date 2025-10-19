@@ -72,3 +72,4 @@ Thumbs.db
 # Other
 #*.sh
 src/data/*.parquet
+*.parquet

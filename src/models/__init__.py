@@ -25,7 +25,7 @@ def create_model(model_cfg: Dict[str, Any], input_shape: Tuple[int, ...]) -> nn.
         # (only import once; registry will be populated via decorators)
         try:
             importlib.import_module("models.mlp")
-            importlib.import_module("models.cnn1d")
+            importlib.import_module("models.simplecnn")
         except Exception:
             pass
     if name not in _MODEL_REGISTRY:

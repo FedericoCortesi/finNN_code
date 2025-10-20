@@ -5,7 +5,9 @@ from . import register_model
 from utils.custom_formatter import setup_logger
 @register_model("mlp")
 class MLPRegressor(nn.Module):
-    def __init__(self, hparams: Dict[str, Any], input_shape: Tuple[int]):
+    def __init__(self, 
+                 hparams: Dict[str, Any], 
+                 input_shape: Tuple[int]):
         super().__init__()
 
         # instantiate logger

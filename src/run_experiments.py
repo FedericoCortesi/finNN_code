@@ -36,7 +36,7 @@ def main():
 
 
     # setup logger
-    console_logger = setup_logger("Experiment", level="INFO")
+    console_logger = setup_logger("Experiment", level="DEBUG")
 
     # --- GPU check (PyTorch) ---
     gpu_test()
@@ -73,7 +73,7 @@ def main():
     def make_input_shape(c):
         if cfg.model.name.lower() == "mlp":
             return (c.walkforward.lags, )
-        elif cfg.model.name.lower() == "cnn1d":
+        elif cfg.model.name.lower() == "simplecnn":
             return (1, cfg.walkforward.lags)  # (C, L)
         else:
             console_logger.warning(f"Model: {cfg.model.name} not recognized!")
@@ -126,7 +126,9 @@ def main():
                                 n_fold=fold,
                                 input_shp=input_shape)
             
-            study.optimize(objective_fn, n_trials=n_trials, n_jobs=n_jobs)
+            study.optimize(objective_fn, 
+                           n_trials=n_trials, 
+                           n_jobs=n_jobs)
 
             # ---- log & (optionally) retrain best-once for the fold ----
             best_number = study.best_trial.number

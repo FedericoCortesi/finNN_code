@@ -1,7 +1,7 @@
 {
   "cfg": {
     "model": {
-      "name": "mlp",
+      "name": "simplecnn",
       "hparams": {
         "hidden_sizes": [
           512,
@@ -12,19 +12,26 @@
         "dropout_rate": 0,
         "activation": [
           "relu",
-          "relu",
-          "relu",
           "relu"
         ],
-        "output_activation": "linear"
+        "output_activation": "linear",
+        "conv_channels": [
+          64,
+          32
+        ],
+        "use_bn": false,
+        "kernel_size": 15,
+        "padding": 0,
+        "pool": "adaptive_avg",
+        "pool_k": 4
       },
       "search": {}
     },
     "trainer": {
       "hparams": {
-        "epochs": 100,
+        "epochs": 250,
         "batch_size": 512,
-        "lr": 0.001,
+        "lr": "1e-3",
         "loss": "mse",
         "metrics": [
           "mae",
@@ -32,8 +39,7 @@
           "dir_acc"
         ],
         "weight_decay": 0,
-        "val_every": 1,
-        "search": false
+        "val_every": 1
       },
       "search": {}
     },
@@ -43,10 +49,11 @@
       "ratio_test": 1,
       "step": 251,
       "lags": 60,
-      "max_folds": null
+      "max_folds": null,
+      "scale": true
     },
     "experiment": {
-      "name": "mlp_60_windows",
+      "name": "cnn_small_60_windows",
       "hyperparams_search": false,
       "monitor": "val_loss",
       "mode": "min",
@@ -60,8 +67,8 @@
     }
   },
   "env": {
-    "host": "node2434",
+    "host": "node3200",
     "platform": "Linux-4.18.0-372.9.1.el8.x86_64-x86_64-with-glibc2.28",
-    "time": "20251020_012003"
+    "time": "20251020_173616"
   }
 }

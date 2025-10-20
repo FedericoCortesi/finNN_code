@@ -1,0 +1,67 @@
+{
+  "cfg": {
+    "model": {
+      "name": "mlp",
+      "hparams": {
+        "hidden_sizes": [
+          512,
+          256,
+          256,
+          128
+        ],
+        "dropout_rate": 0,
+        "activation": [
+          "relu",
+          "relu",
+          "relu",
+          "relu"
+        ],
+        "output_activation": "linear"
+      },
+      "search": {}
+    },
+    "trainer": {
+      "hparams": {
+        "epochs": 100,
+        "batch_size": 512,
+        "lr": "3e-4",
+        "loss": "mse",
+        "metrics": [
+          "mae",
+          "mse",
+          "dir_acc"
+        ],
+        "weight_decay": "1e-2",
+        "val_every": 1
+      },
+      "search": {}
+    },
+    "walkforward": {
+      "ratio_train": 3,
+      "ratio_val": 1,
+      "ratio_test": 1,
+      "step": 251,
+      "lags": 20,
+      "max_folds": null,
+      "scale": true
+    },
+    "experiment": {
+      "name": "mlp_linreg",
+      "hyperparams_search": false,
+      "monitor": "val_loss",
+      "mode": "min",
+      "type": "price_prediction",
+      "n_trials": 20,
+      "random_state": 1234
+    },
+    "data": {
+      "df_master": "dfmaster_lin.parquet",
+      "target_col": "y"
+    }
+  },
+  "env": {
+    "host": "node2434",
+    "platform": "Linux-4.18.0-372.9.1.el8.x86_64-x86_64-with-glibc2.28",
+    "time": "20251020_024625"
+  }
+}

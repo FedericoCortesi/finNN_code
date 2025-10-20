@@ -94,6 +94,8 @@ def main():
         df_master_path =  cfg.data["df_master"]
         df_master = pd.read_parquet(f"{DATA_DIR}/{df_master_path}")
         console_logger.debug(f"provided df master: {df_master_path}\n{df_master.head()}")
+    else:
+        df_master = None # needed for wf.folds()
 
     # -------- train per fold --------
     for fold, data in enumerate(wf.folds(df_master=df_master)):

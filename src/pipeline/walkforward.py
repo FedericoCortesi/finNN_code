@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-#from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler
 
 
 import ast
@@ -23,7 +23,7 @@ class WFCVGenerator:
         time_col: str = "t",
         value_cols: Tuple[str, ...] = ("ret",),   # immutable, if you keep it
         target_col: str = "ret",
-        scaler_factory: Optional[Callable[[], object]] = None,  # or remove
+        scale: bool = False,  # or remove
     ):
         self.console_logger = setup_logger("WFCVGenerator", "INFO")
         self.config = config
@@ -31,7 +31,9 @@ class WFCVGenerator:
 
         self.id_col, self.time_col = id_col, time_col
         self.value_cols, self.target_col = value_cols, target_col
-        self.scaler_factory = scaler_factory
+        self.scale = config.scale 
+        if self.scale is None:
+            self.scale = False
 
         self.df = self._load_df(df_long)  # validated & trimmed
 
@@ -309,6 +311,53 @@ class WFCVGenerator:
             cols_sorted = sorted(cols)  # fallback alphabetical
         return cols_sorted
 
+    def _scale_split(
+        self,
+        Xtr, ytr, Xv, yv, Xte, yte,
+        scale_X=True, scale_y=True,
+        dtype=np.float64
+    ):
+        """
+        Fit scalers on train data and transform val/test.
+        Returns scaled arrays + fitted scalers.
+        """
+
+        # --- Sanity checks for feature arrays ---
+        for name, arr in [("Xtr", Xtr), ("Xv", Xv), ("Xte", Xte)]:
+            if arr is None:
+                raise ValueError(f"{name} is None — expected ndarray.")
+            if not np.isfinite(arr).all():
+                raise ValueError(f"{name} contains NaN or Inf values.")
+
+        X_scaler = None
+        y_scaler = None
+
+        # --- Scale X ---
+        if scale_X:
+            X_scaler = StandardScaler(copy=False)
+            Xtr = X_scaler.fit_transform(Xtr)
+            Xv  = X_scaler.transform(Xv)
+            Xte = X_scaler.transform(Xte)
+
+        # --- Convert dtype (important for GPU) ---
+        Xtr = Xtr.astype(dtype, copy=False)
+        Xv  = Xv.astype(dtype,  copy=False)
+        Xte = Xte.astype(dtype, copy=False)
+
+        # --- Scale y (optional) ---
+        if scale_y and ytr is not None:
+            # sklearn expects 2D input: shape (n_samples, n_features)
+            y_scaler = StandardScaler()
+            ytr = y_scaler.fit_transform(np.asarray(ytr).reshape(-1, 1)).ravel()
+
+            if yv is not None:
+                yv = y_scaler.transform(np.asarray(yv).reshape(-1, 1)).ravel()
+            if yte is not None:
+                yte = y_scaler.transform(np.asarray(yte).reshape(-1, 1)).ravel()
+
+        return Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler
+
+
     
     def folds(self, df_master: pd.DataFrame | None = None):
         """
@@ -317,6 +366,7 @@ class WFCVGenerator:
         """
         # pick master df and normalize/check once
         base = (df_master.copy() if df_master is not None else self.df_master.copy())
+
         base = self._normalize_window_col(base)
         feat_cols = self._feature_cols(base)
 
@@ -328,9 +378,14 @@ class WFCVGenerator:
                 continue
 
             # build arrays in consistent column order
-            Xtr, ytr = df_train[feat_cols].to_numpy(dtype=np.float64), df_train["y"].to_numpy()
-            Xv,  yv  = df_val[feat_cols].to_numpy(dtype=np.float64),   df_val["y"].to_numpy()
-            Xte, yte = df_test[feat_cols].to_numpy(dtype=np.float64),  df_test["y"].to_numpy()
+            Xtr, ytr = df_train[feat_cols].to_numpy(dtype=np.float64), df_train["y"].to_numpy(dtype=np.float64)
+            Xv,  yv  = df_val[feat_cols].to_numpy(dtype=np.float64),   df_val["y"].to_numpy(dtype=np.float64)
+            Xte, yte = df_test[feat_cols].to_numpy(dtype=np.float64),  df_test["y"].to_numpy(dtype=np.float64)
+
+            if self.scale:
+                Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler = self._scale_split(
+                    Xtr, ytr, Xv, yv, Xte, yte
+                )
 
             yield Xtr, ytr, Xv, yv, Xte, yte
 

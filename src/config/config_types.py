@@ -60,6 +60,7 @@ class WFConfig:
     step: int = 251            # trading days per 'year'
     lags: int = 20             # number of past days as features
     max_folds: Optional[int] = None  # optional cap on folds
+    scale: bool = False  # optional scale or not
 
     def __post_init__(self):
         # Derived absolute lengths

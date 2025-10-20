@@ -172,7 +172,8 @@ def _make_report_cb(trial, mode: str = "min", patience: int = 5):
 
     return cb
 
-
+# TODO: log results in trial_{n_fold}_{n_fold} so that you can 
+# save just one conifg json and per fold and not bloat the other dirs.
 def optuna_objective(trial: optuna.trial.Trial, 
                      config: AppConfig,
                      fold_data,

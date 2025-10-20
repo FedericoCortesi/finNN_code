@@ -1,5 +1,5 @@
 experiment:
-  name: "MLP_linreg"
+  name: "mlp_linreg"
   type: "price_prediction"
   random_state: 1234
   #output_root: "experiments"
@@ -10,7 +10,7 @@ experiment:
 # this whole thing might be useless
 data: 
   # df_path: "data/sp500_daily_data.parquet" # if left out the pipeline takes it automatically
-  df_master: "dfmaster_lin.parquet" # if left out the pipeline takes it automatically
+  df_master: dfmaster_lin.parquet # if left out the pipeline takes it automatically
   target_col: "y"
 
 walkforward:
@@ -20,25 +20,25 @@ walkforward:
   ratio_val: 1
   ratio_test: 1
   lags: 20
+  scale: True
   #purge_days: 20
   #embargo_days: 20
 
 trainer:
   hparams:
-    epochs: 50
+    epochs: 100
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    lr: 1.0e-3
+    lr: 1e-3
     loss: "mse"
     metrics: ["mae","mse", "dir_acc"]
-    weight_decay: 0.1
+    weight_decay: 1e-5
     val_every: 1
-    search: False
+    #search: False
 
 model:
   name: "mlp"
   hparams:  
-    hidden_sizes: [256, 256, 256, 256] 
-    dropout_rate: 0 
+    hidden_sizes: [512, 256, 256, 128] 
+    dropout_rate: 0
     activation: [relu, relu, relu, relu]
     output_activation: linear
-    learning_rate: 0.001

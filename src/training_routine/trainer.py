@@ -157,9 +157,20 @@ class Trainer:
         epochs = int(self.cfg.trainer.hparams["epochs"])
         batch_size = int(self.cfg.trainer.hparams["batch_size"])
 
+        # assume Xtr_tensor: (N, D), ytr_tensor: (N,)
+        N = Xtr_tensor.size(0)
+        g = torch.Generator(device="cpu").manual_seed(42)  # fixed seed for reproducibility
+
+        # generate a random permutation of indices
+        perm = torch.randperm(N, generator=g)
+
+        # shuffle both X and y with the same permutation
+        Xtr_shuffled = Xtr_tensor[perm]
+        ytr_shuffled = ytr_tensor[perm]
+
         # Pre-split batches once (cuts per-iter slicing cost)
-        xb_chunks = torch.split(Xtr_tensor, batch_size, dim=0)
-        yb_chunks = torch.split(ytr_tensor, batch_size, dim=0)
+        xb_chunks = torch.split(Xtr_shuffled, batch_size, dim=0)
+        yb_chunks = torch.split(ytr_shuffled, batch_size, dim=0)
 
         # AMP is optional, keep it off for minimalism; enable if you want:
         use_amp = True

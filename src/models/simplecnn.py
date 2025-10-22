@@ -8,7 +8,8 @@ from utils.custom_formatter import setup_logger
 class CNN1D(nn.Module):
     def __init__(self, 
                  hparams: dict,
-                 input_shape: Tuple[int]=None):  # Just for symmetry
+                 input_shape: Tuple[int]=None, 
+                 output_shape:Tuple[int]=None):  # Just for symmetry
         super().__init__()
 
         # --- get hyperparameters safely ---
@@ -23,6 +24,9 @@ class CNN1D(nn.Module):
         # Pooling choices
         self.pool_type = str(hparams.get("pool", "adaptive_avg")).lower()   # "adaptive_avg" | "adaptive_max"
         self.pool_k    = int(hparams.get("pool_k", 1))                      # >=1
+
+        # Output
+        self.output_shape = output_shape
 
         # "Depth" of the tensor
         self.in_ch = 1
@@ -70,7 +74,7 @@ class CNN1D(nn.Module):
                 fc_layers.append(nn.Dropout(self.dropout_rate))
             in_dim = h
 
-        fc_layers.append(nn.Linear(in_dim, 1))  # final regression output
+        fc_layers.append(nn.Linear(in_dim, self.output_shape))  # final regression output
         self.fc = nn.Sequential(*fc_layers)
 
     def _get_activation(self, name: str) -> nn.Module:

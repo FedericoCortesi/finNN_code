@@ -16,3 +16,4 @@ def directional_accuracy_pct(pred: torch.Tensor, targ: torch.Tensor) -> float:
     ps = torch.sign(pred)
     ts = torch.sign(targ)
     return ps.eq(ts).float().mean().item() * 100.0
+

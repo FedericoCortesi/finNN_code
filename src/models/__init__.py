@@ -13,7 +13,7 @@ def register_model(name: str):
         return cls_or_fn
     return _wrap
 
-def create_model(model_cfg: Dict[str, Any], input_shape: Tuple[int, ...]) -> nn.Module:
+def create_model(model_cfg: Dict[str, Any], input_shape: Tuple[int, ...], output_shape: Tuple[int, ...]) -> nn.Module:
     """
     Factory: expects config like {"name": "mlp", "hparams": {...}}.
     Returns an instantiated nn.Module.
@@ -30,4 +30,4 @@ def create_model(model_cfg: Dict[str, Any], input_shape: Tuple[int, ...]) -> nn.
             pass
     if name not in _MODEL_REGISTRY:
         raise ValueError(f"Unknown model '{name}'. Known: {list(_MODEL_REGISTRY.keys())}")
-    return _MODEL_REGISTRY[name](hparams, input_shape)
+    return _MODEL_REGISTRY[name](hparams, input_shape, output_shape)

@@ -21,21 +21,22 @@ class WFCVGenerator:
         id_col: str = "permno",
         df_long: Optional[pd.DataFrame] = None,   # None => call preprocess()
         time_col: str = "t",
-        value_cols: Tuple[str, ...] = ("ret",),   # immutable, if you keep it
-        target_col: str = "ret",
-        scale: bool = False,  # or remove
     ):
         self.console_logger = setup_logger("WFCVGenerator", "INFO")
         self.config = config
         self.console_logger.debug(self.config.summary())
 
         self.id_col, self.time_col = id_col, time_col
-        self.value_cols, self.target_col = value_cols, target_col
+        self.target_col = config.target_col
+
         self.scale = config.scale 
         if self.scale is None:
             self.scale = False
 
         self.df = self._load_df(df_long)  # validated & trimmed
+        self.console_logger.debug(f"Predicting {self.target_col}")
+        self.console_logger.debug(f"self.df.columns: {self.df.columns}")
+
 
         # now safe to proceed
         self.T = self.df[self.time_col].nunique()
@@ -45,25 +46,25 @@ class WFCVGenerator:
     def _load_df(self, df_long: Optional[pd.DataFrame]) -> pd.DataFrame:
         if df_long is None:
             self.console_logger.debug("Loading data via preprocess()")
-            df = preprocess()[["t", "ret", "permno"]].copy()
+            df = preprocess()[[self.time_col, self.target_col, self.id_col]].copy()
         else:
             if df_long.empty:
                 raise ValueError("df_long was provided but is empty.")
             df = df_long.copy()
 
         # validate required columns
-        required = {"t", "ret", "permno"}
+        required = {self.time_col, self.target_col, self.id_col}
         missing = required - set(df.columns)
         if missing:
             raise KeyError(f"Missing required columns: {missing}")
 
         # select & enforce dtypes
-        df = df[["t", "ret", "permno"]].copy()
-        df["t"] = pd.to_numeric(df["t"], errors="raise", downcast="integer")
-        df["ret"] = pd.to_numeric(df["ret"], errors="raise")
+        df = df[[self.time_col, self.target_col, self.id_col]].copy()
+        df[self.time_col] = pd.to_numeric(df[self.time_col], errors="raise", downcast="integer")
+        df[self.target_col] = pd.to_numeric(df[self.target_col], errors="raise")
         # permno often fits in int32; keep as object-safe if needed
-        if not pd.api.types.is_integer_dtype(df["permno"]):
-            df["permno"] = pd.to_numeric(df["permno"], errors="raise", downcast="integer")
+        if not pd.api.types.is_integer_dtype(df[self.id_col]):
+            df[self.id_col] = pd.to_numeric(df[self.id_col], errors="raise", downcast="integer")
 
         # basic log: shape + dtypes + head
         self.console_logger.debug(
@@ -161,11 +162,12 @@ class WFCVGenerator:
 
         # 1) Wide once: rows=permno, cols=t (sorted) 
         # Values has to be ret!!!!!!!!!!!!!
+        # W is a wide matrix (permno x time)
         W = (self.df.pivot(index=self.id_col, columns=self.time_col, values=self.target_col)
                     .sort_index(axis=1))
         col_index = W.columns  # Int64Index of t's
         W = W.astype("float64")  # otherwise numpy doesnt coerce pd nans
-        V = W.values           # ndarray (n_permno × n_time), avoids per-iteration DataFrame ops
+        V = W.values           # ndarray (n_permno x n_time), avoids per-iteration DataFrame ops
 
         # Precompute final column names for each block
         out_cols = [f"feature_{i}" for i in range(self.config.lags)] + ["y"]
@@ -189,6 +191,7 @@ class WFCVGenerator:
             ok_rows = ~np.isnan(block).any(axis=1)
             if not ok_rows.any():
                 continue
+            #self.console_logger.debug(f"block: {block}")
             block = block[ok_rows]
 
             # 5) Build a small DataFrame for this window; rename cols
@@ -198,9 +201,10 @@ class WFCVGenerator:
             # add window informatio
             df_block["window"] = [(a,b)]*len(df_block)
 
+
             # (optional) If you want to keep which permno each row is:
             # keep_ids = W.index.to_numpy()[ok_rows]
-            # df_block.insert(0, "permno", keep_ids)
+            # df_block.insert(0, self.id_col, keep_ids)
             # df_block.insert(1, "t_end", b)
 
             out_frames.append(df_block)
@@ -210,6 +214,20 @@ class WFCVGenerator:
             df_base = pd.concat(out_frames, ignore_index=True)
         else:
             df_base = pd.DataFrame(columns=out_cols)
+
+        if self.config.lookback > 0:
+            # create lookback columns
+            lookback_cols = [f"lookback_{i}" for i in range(self.config.lookback)]
+            cols_to_take = [f"feature_{i}" for i in range(self.config.lags-self.config.lookback, self.config.lags)]
+            df_base[lookback_cols] = df_base[cols_to_take]
+            
+            # define the intended order
+            feature_cols  = [f"feature_{i}" for i in range(self.config.lags)]
+            lookback_cols = [f"lookback_{i}" for i in range(self.config.lookback)]
+            final_cols    = feature_cols + lookback_cols + ["y", "window"]
+
+            # reorder DataFrame
+            df_base = df_base[final_cols]
 
         return df_base
 
@@ -311,6 +329,19 @@ class WFCVGenerator:
             cols_sorted = sorted(cols)  # fallback alphabetical
         return cols_sorted
 
+    def _lookback_columns(self, df: pd.DataFrame) -> list[str]:
+        """
+        Return lookback columns ordered by numeric suffix: feature_0, feature_1, ...
+        """
+        cols = [c for c in df.columns if c.startswith("lookback_")]
+        if not cols:
+            raise KeyError("No 'lookback_*' columns found.")
+        try:
+            cols_sorted = sorted(cols, key=lambda c: int(c.split("_")[1]))
+        except Exception:
+            cols_sorted = sorted(cols)  # fallback alphabetical
+        return cols_sorted
+
     def _scale_split(
         self,
         Xtr, ytr, Xv, yv, Xte, yte,
@@ -348,12 +379,9 @@ class WFCVGenerator:
         if scale_y and ytr is not None:
             # sklearn expects 2D input: shape (n_samples, n_features)
             y_scaler = StandardScaler()
-            ytr = y_scaler.fit_transform(np.asarray(ytr).reshape(-1, 1)).ravel()
-
-            if yv is not None:
-                yv = y_scaler.transform(np.asarray(yv).reshape(-1, 1)).ravel()
-            if yte is not None:
-                yte = y_scaler.transform(np.asarray(yte).reshape(-1, 1)).ravel()
+            ytr = y_scaler.fit_transform(ytr)
+            yv = y_scaler.transform(yv)
+            yte = y_scaler.transform(yte)
 
         return Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler
 
@@ -369,6 +397,13 @@ class WFCVGenerator:
 
         base = self._normalize_window_col(base)
         feat_cols = self._feature_cols(base)
+        if self.config.lookback is not None and self.config.lookback > 0:
+            lookback_cols = self._lookback_columns(base)
+            output_cols = lookback_cols + ["y"]
+        else:
+            output_cols = ["y"]
+
+        self.console_logger.debug(f"output_cols: {output_cols}")
 
         for fold in range(self.folds_count):
             df_train, df_val, df_test = self.obtain_datasets_fold(fold, df_master=base)
@@ -378,9 +413,12 @@ class WFCVGenerator:
                 continue
 
             # build arrays in consistent column order
-            Xtr, ytr = df_train[feat_cols].to_numpy(dtype=np.float64), df_train["y"].to_numpy(dtype=np.float64)
-            Xv,  yv  = df_val[feat_cols].to_numpy(dtype=np.float64),   df_val["y"].to_numpy(dtype=np.float64)
-            Xte, yte = df_test[feat_cols].to_numpy(dtype=np.float64),  df_test["y"].to_numpy(dtype=np.float64)
+            Xtr = df_train[feat_cols].to_numpy(dtype=np.float64) 
+            ytr = df_train[[*output_cols]].to_numpy(dtype=np.float64) # ensure its a list
+            Xv = df_val[feat_cols].to_numpy(dtype=np.float64)   
+            yv = df_val[[*output_cols]].to_numpy(dtype=np.float64) # ensure its a list
+            Xte = df_test[feat_cols].to_numpy(dtype=np.float64)
+            yte = df_test[[*output_cols]].to_numpy(dtype=np.float64) # ensure its a list
 
             if self.scale:
                 Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler = self._scale_split(

@@ -1,0 +1,2 @@
+trial,fold,tr_loss,val_loss,test_loss,tr_mae,val_mae,test_mae,tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,seconds,model_path
+0,0,0.0946805328130722,0.07582750916481018,0.0502019003033638,0.11923215538263321,0.09634771943092346,0.07914591580629349,92.33239889144897,89.83921408653259,90.03440737724304,85.600346326828,/orcd/home/002/corte911/code/finNN_code/src/price_prediction/experiments/exp_007_mlp_40_sliding/trial_20251021_231833/fold_000/model_best.pt

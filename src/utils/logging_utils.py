@@ -41,14 +41,14 @@ class ExperimentLogger:
         # Base experiments dir by type
         self.exp = self.cfg.experiment
         exp_type = self.exp.type
-        self.type_experiments_dir: Path = Path(SRC_DIR) / exp_type / "experiments"
-        self.type_experiments_dir.mkdir(parents=True, exist_ok=True)
+        self.type_PRICE_EXPERIMENTS_DIR: Path = Path(SRC_DIR) / exp_type / "experiments"
+        self.type_PRICE_EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
         # get name
         exp_name = self.exp.name
 
         # ---- try to reuse an existing experiment with the same name ----
         existing_dirs = [
-            d for d in self.type_experiments_dir.iterdir()
+            d for d in self.type_PRICE_EXPERIMENTS_DIR.iterdir()
             if d.is_dir() and d.name.startswith("exp_") and d.name.endswith(f"_{exp_name}")
         ]
 
@@ -69,8 +69,8 @@ class ExperimentLogger:
         else:
             # ---- Original behavior: allocate a new exp_{id:03d}_{name} ----
             existing = [
-                d.name for d in self.type_experiments_dir.iterdir()
-                if (self.type_experiments_dir / d).is_dir() and d.name.startswith("exp_")
+                d.name for d in self.type_PRICE_EXPERIMENTS_DIR.iterdir()
+                if (self.type_PRICE_EXPERIMENTS_DIR / d).is_dir() and d.name.startswith("exp_")
             ]
             nums = []
             for dn in existing:
@@ -81,7 +81,7 @@ class ExperimentLogger:
                     pass
             next_id = max(nums) + 1 if nums else 1
 
-            self.exp_dir: Path = self.type_experiments_dir / f"exp_{next_id:03d}_{exp_name}"
+            self.exp_dir: Path = self.type_PRICE_EXPERIMENTS_DIR / f"exp_{next_id:03d}_{exp_name}"
             self.exp_dir.mkdir(parents=True, exist_ok=True)
 
         # Trial-scoped paths (set by begin_trial)

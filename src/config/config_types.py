@@ -54,6 +54,8 @@ class TrainerConfig:
 class WFConfig:
     """Configuration for Walk-Forward Cross-Validation."""
 
+    target_col: str = "ret"    # target column for regression
+    lookback: int = 0          # Last N observations to include in the y vector 
     ratio_train: int = 3       # x test
     ratio_val: int = 1         # x test
     ratio_test: int = 1        # base value = step
@@ -73,6 +75,13 @@ class WFConfig:
             v = getattr(self, name)
             if not isinstance(v, int) or v <= 0:
                 raise ValueError(f"{name} must be a positive integer, got {v}")
+
+        v = getattr(self, "lookback")
+        if not isinstance(v, int) or v < 0:
+            raise ValueError(f"{name} must be a non-negative integer, got {v}")
+            
+
+        assert self.lookback < self.lags, f"Lags must be longer than lookback, got {self.lookback} and {self.lags} instead"
 
     def summary(self) -> str:
         return (

@@ -18,6 +18,7 @@ from config.config_types import AppConfig
 from .metrics import directional_accuracy_pct as _directional_accuracy_pct
 from .metrics import mse as _mse
 from .metrics import mae as _mae
+from .training_utils import early_stopping_step
 
 
 class Trainer:
@@ -176,21 +177,33 @@ class Trainer:
         use_amp = True
         amp_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=use_amp)
 
+        # define variables for grad descent
         best_val = np.inf if mode == "min" else -np.inf
         history = []  # store monitor per epoch for compatibility
         grad_history = []  # store grads 
 
+        # early stopping
+        patience  = self.cfg.trainer.hparams.get("torch_patience")
+        patience = int(patience) if patience is not None else patience
+        self.console_logger.debug(f"Patience: {patience}") 
+        min_delta = float(self.cfg.trainer.hparams.get("min_delta", 1e-4))
+        stalled = 0
+        best_state = None
+
         t0 = time.time()
         if Xv_tensor is not None:
             msg = f"Fitting fold {fold:02d} (trial {trial:02d}) " \
-                f"on {Xtr_tensor.shape} samples, val {Xv_tensor.shape}, test {Xte_tensor.shape}"
+                f"on {Xtr_tensor.shape} samples, val {Xv_tensor.shape}, test {Xte_tensor.shape}." \
+                f" Y's shapes: train {ytr_tensor.shape}, val {yv_tensor.shape}, test {yte_tensor.shape}" \
+            
         else:
             msg = f"Fitting fold {fold:02d} (trial {trial:02d}) " \
-                f"on train+val {Xtr_tensor.shape} samples, test {Xte_tensor.shape}"
+                f"on train+val {Xtr_tensor.shape} samples, test {Xte_tensor.shape}" \
+                f"Y's shapes: train {ytr_tensor.shape}, test {yte_tensor.shape}"
 
         self.console_logger.info(msg)
 
-
+        effective_epochs = 0
         # iterate over epochs
         for epoch in range(1, epochs + 1):
             start_epoch_time = time.time()
@@ -216,9 +229,7 @@ class Trainer:
 
             # Validate only every k epochs (default k=10)
             # k=1 slower but good for debugging 
-            # TODO: take out if not merge_train_val, less
-            # computation on cpu is better. This is 
-            # slow as hell.        
+            # TODO: remove the ifs and make this more streamlined.        
             if not merge_train_val:
                 if epoch % val_every == 0 or epoch == epochs or epoch == 1:
                     self.model.eval()
@@ -232,6 +243,32 @@ class Trainer:
                         f"Epoch {epoch:03d} | loss={epoch_loss/max(seen,1):.12f} "
                         f"| val_loss={vloss:.6f} | time: {time.time()-start_epoch_time:.3f}s"
                     )
+                    
+                    if patience is not None:
+                        # early stopping logic (on validation checkpoints only)
+                        # be very mindful with this, setting a high patience makes the
+                        # GPU mmeory implode
+                        es_result = early_stopping_step(epoch=epoch,
+                                                        val_loss=vloss,
+                                                        best_val=best_val,
+                                                        stalled=stalled,
+                                                        patience=patience,
+                                                        min_delta=min_delta,
+                                                        mode=mode,
+                                                        model=self.model,
+                                                        optimizer=self.optimizer)
+                        
+                        best_val, stalled, best_state, should_stop = es_result
+                        
+                        if should_stop:
+                            self.console_logger.info(
+                                f"Early stopping at epoch {epoch} "
+                                f"(no val improvement in {patience} validations)."
+                            )
+                            # break out of training loop
+                        break
+
+
                     # optional pruning callback only in search mode
                     if callable(report_cb):
                         # report the monitored validation metric
@@ -259,6 +296,7 @@ class Trainer:
                             grad_means[name] = p.grad.abs().mean().item()
                     grad_history.append({"epoch": epoch, **grad_means})
 
+            effective_epochs += 1
 
         # get best and write it to disk
         if merge_train_val:
@@ -266,7 +304,8 @@ class Trainer:
             best_epoch = epochs
             best_val = history[-1]["tr_loss"]
         else:
-            val_history = [history[e].get("val_loss") for e in range(epochs)]
+            val_entries = [h for h in history if "val_loss" in h]
+            val_history = np.array([h["val_loss"] for h in val_entries])
             best_epoch = int(np.argmin(np.array(val_history))) + 1 if mode == "min" else int(np.argmax(np.array(val_history))) + 1
             best_val = history[best_epoch - 1].get("val_loss")
 

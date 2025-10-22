@@ -74,3 +74,8 @@ Thumbs.db
 src/data/*.parquet
 *.parquet
 logs/
+
+# Ignore PyTorch model checkpoints
+*.pt
+*.pth
+*.ckpt

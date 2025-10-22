@@ -58,7 +58,8 @@ def main():
 
     if args.data:
         df = pd.read_parquet(args.data)
-        wf = WFCVGenerator(df_long=df, config=cfg.walkforward)
+        wf = WFCVGenerator(df_long=df, 
+                           config=cfg.walkforward)
     else:
         wf = WFCVGenerator(config=cfg.walkforward)
 
@@ -70,6 +71,7 @@ def main():
     input_shape = cfg.walkforward.lags            # int is fine; build_model handles it
     max_folds = cfg.walkforward.max_folds
 
+    # define shapes
     def make_input_shape(c):
         if cfg.model.name.lower() == "mlp":
             return (c.walkforward.lags, )
@@ -78,6 +80,10 @@ def main():
         else:
             console_logger.warning(f"Model: {cfg.model.name} not recognized!")
             raise ValueError
+
+    # ouput shape is constant
+    output_shape = cfg.walkforward.lookback + 1 if cfg.walkforward.lookback is not None else 1
+
 
     # Get bool for search
     hyperparams_search = cfg.experiment.hyperparams_search
@@ -120,6 +126,8 @@ def main():
             )
 
             # Define a "bound" objective function with extra args pre-filled
+            # the logger is instatiated in this function so that it can save 
+            # the random parameters
             objective_fn = partial(optuna_objective,
                                 config=cfg,
                                 fold_data=data,
@@ -145,7 +153,7 @@ def main():
             best_logger.begin_trial(name="search_best")
 
             best_trainer = Trainer(best_cfg, best_logger)
-            best_model   = create_model(best_cfg.model, input_shape)
+            best_model   = create_model(best_cfg.model, input_shape, output_shape)
 
             # If you keep shorter epochs during search, you can override here:
             # best_cfg.trainer.params["epochs"] = cfg.trainer.params["epochs"]  # full epochs
@@ -166,8 +174,7 @@ def main():
 
         else:
             # Keep model creation inside the loop to avoid weight leakage across folds
-            # Keep model creation inside the loop to avoid weight leakage across folds
-            model = create_model(cfg.model, input_shape)       
+            model = create_model(cfg.model, input_shape, output_shape)       
 
             if fold == 0:
                 console_logger.debug(f"model: {model}")

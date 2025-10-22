@@ -191,7 +191,8 @@ def optuna_objective(trial: optuna.trial.Trial,
 
     # 2) fresh trainer per trial (avoid any state carry-over)
     trial_logger = ExperimentLogger(trial_cfg)
-    trial_logger.begin_trial(trial.number)
+    name = f"{n_fold:03d}_{trial.number:03d}"
+    trial_logger.begin_trial(name)
 
     trial_trainer = Trainer(trial_cfg, trial_logger)
 
@@ -203,7 +204,10 @@ def optuna_objective(trial: optuna.trial.Trial,
 
     # 5) epoch-wise reporting so ASHA can prune early
     mode = trial_cfg.experiment.mode.lower()  # "min" or "max"
-    report_cb = _make_report_cb(trial, mode=mode, patience=5)
+    patience = trial_cfg.trainer.hparams.get("optuna_patience",10)
+    report_cb = _make_report_cb(trial, 
+                                mode=mode, 
+                                patience=patience)
      
     
     # 6) fit/eval only on THIS fold’s (train,val). Your `data` tuple already contains them.

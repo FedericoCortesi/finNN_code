@@ -1,6 +1,6 @@
 experiment:
   name: "mlp"
-  type: "price_prediction"
+  type: "vola"
   seed: 1234
   output_root: "experiments"
   monitor: "val_loss"

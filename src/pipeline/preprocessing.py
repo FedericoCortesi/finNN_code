@@ -3,7 +3,11 @@ import pandas as pd
 from typing import Iterable
 from  utils.paths import SP500_PATH
 from utils.custom_formatter import setup_logger
-console_logger = setup_logger("Preprocessing", "INFO")
+import warnings
+warnings.simplefilter(action="ignore")
+
+
+console_logger = setup_logger("Preprocessing", "DEBUG")
 
 def import_data(path) -> pd.DataFrame:
     if not path.exists():
@@ -154,13 +158,45 @@ def create_time_index(df:pd.DataFrame):
 
     return df
 
+def compute_variance(df:pd.DataFrame):
+    df = df.copy()
+    
+    # Pre-calculate the constant value
+    C2 = 2 * np.log(2) - 1  # Approx. 0.3863
 
-def preprocess(path:str=SP500_PATH, ohlc_rets:bool=False):
+    # Extract NumPy arrays for faster computation
+    high = df["high"].to_numpy()
+    low = df["low"].to_numpy()
+    close = df["close"].to_numpy()
+    open_ = df["open"].to_numpy()
+
+    # Calculate volatility using NumPy arrays
+    log_hl = np.log(high / low)
+    log_co = np.log(close / open_)
+    
+    df["var"] = 0.5 * (log_hl ** 2) - C2 * (log_co ** 2)
+
+    console_logger.debug(f"number of nans in var: {df["var"].isna().sum()}")
+    df = df.dropna()
+
+    return df
+
+def preprocess(path:str=SP500_PATH, 
+               nan_imputation:bool=True,
+               ohlc_rets:bool=False,
+               variance:bool=True):
     df = import_data(path)
+    # we dont need to refactor since we only look
+    # at ratios for volatility.
     #df = adjust_for_splits(df) #  Necessary only for OHLC
-    df = handle_nans(df)
+    if nan_imputation:
+        df = handle_nans(df)
+    
     if ohlc_rets:
         df = create_ohlc_returns(df)
+    
+    if variance:
+        df = compute_variance(df)
 
     df = create_time_index(df)
 

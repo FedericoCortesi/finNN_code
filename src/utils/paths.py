@@ -5,7 +5,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Common subpaths
 SRC_DIR = REPO_ROOT / "src" 
-EXPERIMENTS_DIR = REPO_ROOT / "src" / "price_prediction" / "experiments"
+PRICE_EXPERIMENTS_DIR = REPO_ROOT / "src" / "price_prediction" / "experiments"
+VOL_EXPERIMENTS_DIR = REPO_ROOT / "src" / "volatility" / "experiments"
 SMOKE_DIR = REPO_ROOT / "src" / "price_prediction" / "experiments" / "smoke"
 DATA_DIR = REPO_ROOT / "src" / "data"
 PIPELINE_DIR = REPO_ROOT / "src" / "pipeline"

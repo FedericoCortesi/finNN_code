@@ -1,52 +1,50 @@
 
 experiment:
-  name: mlp_optuna_search_more_data
+  name: mlp_optuna_fixedarch
   type: "price_prediction"
   hyperparams_search: True
   monitor: val_loss
   mode: min
-  n_trials: 5 # for random search 
+  n_trials: 50 # for random search 
   random_state: 42 # for reproducibility
 
 
 data:
   # df_path: "data/sp500_daily_data.parquet" # if left out the pipeline takes it automatically
+  df_master: 
   target_col: "y"
-  feature_cols: ['feature_0', 'feature_1', 'feature_2', 'feature_3', 'feature_4',
-        'feature_5', 'feature_6', 'feature_7', 'feature_8', 'feature_9',
-        'feature_10', 'feature_11', 'feature_12', 'feature_13', 'feature_14',
-        'feature_15', 'feature_16', 'feature_17', 'feature_18', 'feature_19']
-  standardize: true # never used
 
 walkforward:
   max_folds: 
-  step: 502
+  step: 251
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 20
+  lags: 60
+  scale: True 
 
 trainer:
   hparams:
-    epochs: 50
+    epochs: 100
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    #patience: 8
-    metrics: ["mae","mse", "dir_acc"]
+    torch_patience: 10  
+    min_delta: 1e-4  
+    optuna_patience: 20  
     loss: "mse"
+    metrics: ["mae","mse", "dir_acc"]
     val_every: 1
   search:
-    lr: {type: float, low: 1.0e-5, high: 1.0e-3, log: False}
+    lr: {type: float, low: 1.0e-5, high: 1.0e-2, log: False}
     weight_decay:  {type: float, low: 0, high: 1.0e-2, log: False}
 
 model:
   name: mlp
   hparams:
     output_activation: linear
+    activation:  ["relu", "relu", "relu", "relu", "relu", "relu"]
+    hidden_sizes: [1024, 512, 512, 256, 256, 128]
   search:
     dropout_rate:   {type: float, low: 0.0, high: 0.5}
-    activation:    {type: cat,   choices: [relu, gelu, tanh]}
-    n_layers:      {type: int,   low: 1, high: 10}
-    n_hidden:      {type: int,   low: 64, high: 1024}
 
 
 

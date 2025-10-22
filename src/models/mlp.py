@@ -7,8 +7,12 @@ from utils.custom_formatter import setup_logger
 class MLPRegressor(nn.Module):
     def __init__(self, 
                  hparams: Dict[str, Any], 
-                 input_shape: Tuple[int]):
+                 input_shape: Tuple[int],
+                 output_shape: Tuple[int]):
         super().__init__()
+        self.input_shape = input_shape
+        self.output_shape = output_shape
+
 
         # instantiate logger
         self.console_logger = setup_logger(name="MLP", level="INFO")
@@ -29,7 +33,7 @@ class MLPRegressor(nn.Module):
 
         # create a list of dimensions and act function
         layers_list = []
-        in_dim = input_shape[0] if isinstance(input_shape, tuple) else input_shape # Ok to pass (20,) or 20
+        in_dim = self.input_shape[0] if isinstance(self.input_shape, tuple) else self.input_shape # Ok to pass (20,) or 20
 
         # go over the number of layers
         for i, width in enumerate(hidden_sizes):
@@ -64,7 +68,7 @@ class MLPRegressor(nn.Module):
             in_dim = width
 
         # output layer
-        layers_list.append(nn.Linear(in_dim, 1))
+        layers_list.append(nn.Linear(in_dim, self.output_shape))
         if out_act:
             act = out_act.lower()
             if act == "relu":

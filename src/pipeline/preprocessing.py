@@ -7,7 +7,7 @@ import warnings
 warnings.simplefilter(action="ignore")
 
 
-console_logger = setup_logger("Preprocessing", "DEBUG")
+console_logger = setup_logger("Preprocessing", "INFO")
 
 def import_data(path) -> pd.DataFrame:
     if not path.exists():

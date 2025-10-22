@@ -30,7 +30,7 @@ class Trainer:
         self.logger = logger
         
         # console logging, mainly fro debugging
-        self.console_logger = setup_logger("Trainer", level="INFO")
+        self.console_logger = setup_logger("Trainer", level="DEBUG")
         
         self.device = torch.device("cuda")
         # Fail if cuda (=GPU) not available
@@ -107,6 +107,15 @@ class Trainer:
             "directional_accuracy_pct": _directional_accuracy_pct(pred, y_t),
         }
 
+    def _y_to_tensor(self, y):
+        t = torch.as_tensor(y, dtype=torch.float32, device=self.device)
+        # make y a 1-D vector (N,)
+        if t.ndim == 2 and t.size(-1) == 1:
+            t = t.squeeze(-1)
+        elif t.ndim != 1:
+            raise ValueError(f"y must be 1-D or (N,1); got {tuple(t.shape)}")
+        return t
+
     def fit_eval_fold(
         self,
         model: torch.nn.Module,
@@ -138,18 +147,18 @@ class Trainer:
 
             # Same name so the notation is less cumbersome
             Xtr_tensor = torch.as_tensor(Xtrv, dtype=torch.float32, device=self.device) 
-            ytr_tensor = torch.as_tensor(ytrv, dtype=torch.float32, device=self.device)
+            ytr_tensor = self._y_to_tensor(ytrv)
             # No validation tensors in merged mode
             Xv_tensor = yv_tensor = None
             Xte_tensor  = torch.as_tensor(Xte,  dtype=torch.float32, device=self.device)
-            yte_tensor  = torch.as_tensor(yte,  dtype=torch.float32, device=self.device)
+            yte_tensor  = self._y_to_tensor(yte)
         else:
             Xtr_tensor = torch.as_tensor(Xtr, dtype=torch.float32, device=self.device)
-            ytr_tensor = torch.as_tensor(ytr, dtype=torch.float32, device=self.device)
+            ytr_tensor = self._y_to_tensor(ytr)
             Xv_tensor  = torch.as_tensor(Xv,  dtype=torch.float32, device=self.device)
-            yv_tensor  = torch.as_tensor(yv,  dtype=torch.float32, device=self.device)
+            yv_tensor  = self._y_to_tensor(yv)
             Xte_tensor  = torch.as_tensor(Xte,  dtype=torch.float32, device=self.device)
-            yte_tensor  = torch.as_tensor(yte,  dtype=torch.float32, device=self.device)
+            yte_tensor  = self._y_to_tensor(yte)
 
         # Compile (optimizer/loss/device)
         self.compile(model)
@@ -245,6 +254,7 @@ class Trainer:
                     )
                     
                     if patience is not None:
+                        self.console_logger.debug(f"Here inside patience")
                         # early stopping logic (on validation checkpoints only)
                         # be very mindful with this, setting a high patience makes the
                         # GPU mmeory implode

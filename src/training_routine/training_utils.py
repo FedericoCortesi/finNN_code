@@ -1,8 +1,10 @@
 import torch
 
+# necessary helper function to avoid storing states on the GPU
 def _state_dict_cpu(model: torch.nn.Module):
     return {k: v.detach().to("cpu") for k, v in model.state_dict().items()}
 
+# necessary helper function to avoid storing states on the GPU
 def _optimizer_state_cpu(optim: torch.optim.Optimizer):
     st = optim.state_dict()
     # move all tensors in optimizer state to cpu

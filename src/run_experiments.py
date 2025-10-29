@@ -103,6 +103,10 @@ def main():
     else:
         df_master = None # needed for wf.folds()
 
+    # Warning before starting
+    if cfg.walkforward.scale == True and cfg.trainer.hparams["loss"].lower() == "qlike":
+        console_logger.warning(f"Attention: scaling data and 'qlike' loss might lead to bad results because of skewness.")
+
     # -------- train per fold --------
     for fold, data in enumerate(wf.folds(df_master=df_master)):
         if max_folds is not None and fold >= max_folds:
@@ -132,7 +136,8 @@ def main():
                                 config=cfg,
                                 fold_data=data,
                                 n_fold=fold,
-                                input_shp=input_shape)
+                                input_shp=input_shape,
+                                output_shp=output_shape)
             
             study.optimize(objective_fn, 
                            n_trials=n_trials, 

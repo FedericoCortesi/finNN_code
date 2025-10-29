@@ -178,7 +178,8 @@ def optuna_objective(trial: optuna.trial.Trial,
                      config: AppConfig,
                      fold_data,
                      n_fold,
-                     input_shp)-> float:
+                     input_shp,
+                     output_shp)-> float:
     # 1) sample hparams → a NEW cfg (dict or dataclass, depending on your function)
 
     trial_cfg = sample_hparams_into_cfg(config, trial)  # returns same "type" you pass in
@@ -196,11 +197,9 @@ def optuna_objective(trial: optuna.trial.Trial,
 
     trial_trainer = Trainer(trial_cfg, trial_logger)
 
-    # 3) (re)compute input shape from the *trial* cfg if model family could change
-    shp = input_shp
 
     # 4) build a fresh model for this trial
-    model = create_model(trial_cfg.model, shp)
+    model = create_model(trial_cfg.model, input_shp, output_shp)
 
     # 5) epoch-wise reporting so ASHA can prune early
     mode = trial_cfg.experiment.mode.lower()  # "min" or "max"

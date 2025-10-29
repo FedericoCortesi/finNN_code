@@ -22,7 +22,7 @@ class WFCVGenerator:
         df_long: Optional[pd.DataFrame] = None,   # None => call preprocess()
         time_col: str = "t",
     ):
-        self.console_logger = setup_logger("WFCVGenerator", "INFO")
+        self.console_logger = setup_logger("WFCVGenerator", "DEBUG")
         self.config = config
         self.console_logger.debug(self.config.summary())
 
@@ -419,6 +419,28 @@ class WFCVGenerator:
             yv = df_val[[*output_cols]].to_numpy(dtype=np.float64) # ensure its a list
             Xte = df_test[feat_cols].to_numpy(dtype=np.float64)
             yte = df_test[[*output_cols]].to_numpy(dtype=np.float64) # ensure its a list
+
+            #debug
+            if self.config.clip:
+                # Calculate 99th percentile threshold from training data only
+                X_flat = Xtr.flatten()
+                lower_threshold = np.percentile(X_flat, 0.5)  # 0.5th percentile
+                upper_threshold = np.percentile(X_flat, 99.5)  # 99.5th percentile
+                
+                # Find rows to keep in each set (all features within percentile range)
+                train_mask = np.all((Xtr >= lower_threshold) & (Xtr <= upper_threshold), axis=1)
+                val_mask = np.all((Xv >= lower_threshold) & (Xv <= upper_threshold), axis=1)
+                test_mask = np.all((Xte >= lower_threshold) & (Xte <= upper_threshold), axis=1)
+                
+                # Apply masks to both X and y
+                Xtr, ytr = Xtr[train_mask], ytr[train_mask]
+                Xv, yv = Xv[val_mask], yv[val_mask]
+                Xte, yte = Xte[test_mask], yte[test_mask]
+                
+                self.console_logger.debug(
+                    f"Fold {fold} after clipping: train={len(Xtr)}, val={len(Xv)}, test={len(Xte)}"
+                )                
+
 
             if self.scale:
                 Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler = self._scale_split(

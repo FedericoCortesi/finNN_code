@@ -63,6 +63,7 @@ class WFConfig:
     lags: int = 20             # number of past days as features
     max_folds: Optional[int] = None  # optional cap on folds
     scale: bool = False  # optional scale or not
+    clip: bool = False
 
     def __post_init__(self):
         # Derived absolute lengths

@@ -18,6 +18,7 @@ from config.config_types import AppConfig
 from .metrics import directional_accuracy_pct as _directional_accuracy_pct
 from .metrics import mse as _mse
 from .metrics import mae as _mae
+from .metrics import QLikeLoss
 from .training_utils import early_stopping_step
 
 
@@ -30,7 +31,7 @@ class Trainer:
         self.logger = logger
         
         # console logging, mainly fro debugging
-        self.console_logger = setup_logger("Trainer", level="DEBUG")
+        self.console_logger = setup_logger("Trainer", level="INFO")
         
         self.device = torch.device("cuda")
         # Fail if cuda (=GPU) not available
@@ -46,7 +47,6 @@ class Trainer:
     def compile(self, model: torch.nn.Module):
         self.model = model.to(self.device)
 
-        self.console_logger.debug(f"self.cfg.trainer:\n{self.cfg.trainer}")
         lr = float(self.cfg.trainer.hparams["lr"])
         weight_decay = float(self.cfg.trainer.hparams["weight_decay"])
 
@@ -56,6 +56,8 @@ class Trainer:
             self.loss_fn = nn.MSELoss()
         elif loss_name in ("mae", "mean_absolute_error", "l1"):
             self.loss_fn = nn.L1Loss()
+        elif loss_name in ("qlike"):
+            self.loss_fn = QLikeLoss()
         else:
             raise ValueError(f"Unsupported loss '{loss_name}'")
 
@@ -109,11 +111,16 @@ class Trainer:
 
     def _y_to_tensor(self, y):
         t = torch.as_tensor(y, dtype=torch.float32, device=self.device)
-        # make y a 1-D vector (N,)
+
         if t.ndim == 2 and t.size(-1) == 1:
+            # single output, squeeze to (N,)
             t = t.squeeze(-1)
+        elif t.ndim == 2 and t.size(-1) > 1:
+            # multi-output target, keep as (N, M)
+            pass
         elif t.ndim != 1:
-            raise ValueError(f"y must be 1-D or (N,1); got {tuple(t.shape)}")
+            raise ValueError(f"y must be 1-D, (N,1), or (N,M); got {tuple(t.shape)}")
+
         return t
 
     def fit_eval_fold(
@@ -194,7 +201,6 @@ class Trainer:
         # early stopping
         patience  = self.cfg.trainer.hparams.get("torch_patience")
         patience = int(patience) if patience is not None else patience
-        self.console_logger.debug(f"Patience: {patience}") 
         min_delta = float(self.cfg.trainer.hparams.get("min_delta", 1e-4))
         stalled = 0
         best_state = None
@@ -211,6 +217,7 @@ class Trainer:
                 f"Y's shapes: train {ytr_tensor.shape}, test {yte_tensor.shape}"
 
         self.console_logger.info(msg)
+        self.console_logger.debug(f"np.std(ytr),np.std(yv),np.std(yte): {np.std(ytr),np.std(yv),np.std(yte)}")
 
         effective_epochs = 0
         # iterate over epochs
@@ -250,11 +257,10 @@ class Trainer:
                     history.append({"tr_loss":tr_loss_avg, "val_loss":vloss})
                     self.console_logger.info(
                         f"Epoch {epoch:03d} | loss={epoch_loss/max(seen,1):.12f} "
-                        f"| val_loss={vloss:.6f} | time: {time.time()-start_epoch_time:.3f}s"
+                        f"| val_loss={vloss:.12f} | time: {time.time()-start_epoch_time:.3f}s"
                     )
                     
                     if patience is not None:
-                        self.console_logger.debug(f"Here inside patience")
                         # early stopping logic (on validation checkpoints only)
                         # be very mindful with this, setting a high patience makes the
                         # GPU mmeory implode
@@ -276,7 +282,7 @@ class Trainer:
                                 f"(no val improvement in {patience} validations)."
                             )
                             # break out of training loop
-                        break
+                            break
 
 
                     # optional pruning callback only in search mode
@@ -357,10 +363,7 @@ class Trainer:
             else:
                 best_epoch_from_hist = int(np.argmax(np.array(val_history))) + 1
         else:
-            vmap = {"val_loss": np.nan, 
-                    "val_mae": np.nan, 
-                    "val_mse": np.nan, 
-                    "val_directional_accuracy_pct": np.nan}  # placeholder
+            vmap = {f"val_{k}": np.nan for k, v in tr.items()}  # placeholder, use tr since the metrics are identical
             best_epoch_from_hist = -1
 
 

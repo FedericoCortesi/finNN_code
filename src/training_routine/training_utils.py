@@ -23,8 +23,7 @@ def early_stopping_step(
     min_delta: float,
     mode: str,
     model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    ckpt_path: str,  # NEW: save immediately
+    optimizer: torch.optim.Optimizer
 ):
     """
     Returns: (new_best_val, new_stalled, improved, should_stop)
@@ -34,15 +33,13 @@ def early_stopping_step(
     if improved:
         best_val = val_loss
         stalled = 0
-        torch.save({
-            "epoch": epoch,
-            "model_state": _state_dict_cpu(model),
-            "optimizer_state": _optimizer_state_cpu(optimizer),
-            "monitor": best_val,
-        }, ckpt_path)
+        best_state = { "epoch": epoch, 
+                      "model_state": {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}, 
+                      "optimizer_state": optimizer.state_dict(), }
         should_stop = False
     else:
         stalled += 1
+        best_state = None
         should_stop = (patience > 0 and stalled >= patience)
 
     return best_val, stalled, improved, should_stop

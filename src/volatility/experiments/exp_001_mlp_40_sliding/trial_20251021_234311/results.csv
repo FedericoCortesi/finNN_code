@@ -1,2 +1,0 @@
-trial,fold,tr_loss,val_loss,test_loss,tr_mae,val_mae,test_mae,tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,seconds,model_path
-0,0,0.04001118615269661,0.00035979828680865467,0.0001388268719892949,0.01493911724537611,0.006845587398856878,0.005108897108584642,92.04197525978088,96.70077562332153,98.27226996421814,81.16780185699463,/orcd/home/002/corte911/code/finNN_code/src/volatility/experiments/exp_001_mlp_40_sliding/trial_20251021_234311/fold_000/model_best.pt

@@ -130,10 +130,29 @@ class ExperimentLogger:
                     "seconds,model_path\n"
                 )
 
+        # save config once per trial        
+        stamp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        with open(self.trial_dir / "config_snapshot.json", "w") as f:
+            cfg_dict = asdict(self.cfg)  # assumes AppConfig is a dataclass
+            json.dump(
+                {
+                    "cfg": cfg_dict,
+                    "env": {
+                        "host": socket.gethostname(),
+                        "platform": platform.platform(),
+                        "time": stamp_time,
+                    },
+                },
+                f,
+                indent=2,
+            )
+
         # Save config + small env stamp (per trial)
         # Moved to path 
         self.console_logger.info(f"Trial directory: {self.trial_dir}")
         return str(self.trial_dir)
+
+
 
     # ---- writers -------------------------------------------------------------
 
@@ -161,7 +180,7 @@ class ExperimentLogger:
         )
         with open(self.results_csv, "a") as f:
             f.write(line)
-
+        
     def log(self, obj: dict):
         """Append a JSON line to this trial's metadata.jsonl."""
         if self.meta_path is None:
@@ -185,24 +204,5 @@ class ExperimentLogger:
         self.console_logger.debug(f"fold_dir: {os.path.basename(p)}")
         if str(p).endswith("/") or p.suffix == "":
             p.mkdir(parents=True, exist_ok=True)
-        # Save config + small env stamp (per trial)
-        if "fold" in str(os.path.basename(p)): 
-            time = datetime.now().strftime("%Y%m%d_%H%M%S")
-            with open(p / "config_snapshot.json", "w") as f:
-                cfg_dict = asdict(self.cfg)
-                json.dump(
-                    {
-                        "cfg": cfg_dict,
-                        "env": {
-                            "host": socket.gethostname(),
-                            "platform": platform.platform(),
-                            "time": time,
-                        },
-                    },
-                    f,
-                    indent=2,
-                )
-
-
-
+       
         return str(p)

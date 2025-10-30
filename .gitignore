@@ -79,3 +79,4 @@ logs/
 *.pt
 *.pth
 *.ckpt
+*.json

@@ -22,7 +22,7 @@ class WFCVGenerator:
         df_long: Optional[pd.DataFrame] = None,   # None => call preprocess()
         time_col: str = "t",
     ):
-        self.console_logger = setup_logger("WFCVGenerator", "DEBUG")
+        self.console_logger = setup_logger("WFCVGenerator", "INFO")
         self.config = config
         self.console_logger.debug(self.config.summary())
 

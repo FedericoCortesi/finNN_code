@@ -81,7 +81,11 @@ class Trainer:
             fused=True
         )
         try:
-            self.model = torch.compile(self.model)
+            # avoid cnn bug
+            if self.cfg.model.name.lower() == "simplecnn":
+                self.model = torch.compile(self.model, backend="eager", fullgraph=False)
+            else:
+                self.model = torch.compile(self.model)
         except Exception:
             pass
 

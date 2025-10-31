@@ -1,5 +1,5 @@
 experiment:
-  name: "mlp_504"
+  name: "mlp_40"
   type: "price_prediction"
   random_state: 1234
   monitor: "val_loss"
@@ -17,11 +17,11 @@ walkforward:
   target_col: ret
   lookback: 0
   max_folds: 
-  step: 1256
+  step: 251
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 504
+  lags: 40
   scale: True
   clip: False
   #purge_days: 20
@@ -29,16 +29,16 @@ walkforward:
 
 trainer:
   hparams:
-    epochs: 500
+    epochs: 100
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    torch_patience: 75 # if empty early stopping is not active
+    torch_patience: 50 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
     optuna_patience: 25  
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    lr: 5e-3
-    weight_decay:  3e-3 # change to zero
+    lr: 1e-4
+    weight_decay:  1e-2 # change to zero
 
 
 model:

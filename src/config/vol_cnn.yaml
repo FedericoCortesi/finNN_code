@@ -1,5 +1,5 @@
 experiment:
-  name: "cnn_504"
+  name: "cnn_40"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
@@ -17,11 +17,11 @@ walkforward:
   target_col: var
   lookback: 0
   max_folds: 
-  step: 1257
+  step: 251
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 504
+  lags: 40
   scale: False
   clip: True
   #purge_days: 20
@@ -29,15 +29,15 @@ walkforward:
 
 trainer:
   hparams:
-    epochs: 100
+    epochs: 250
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    torch_patience: 75 # if empty early stopping is not active
+    torch_patience:  # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
     optuna_patience: 30  
     loss: "mse" #qlike doesnt work for vol as of now :(
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    lr: 5e-4
+    lr: 1e-4
     weight_decay: 0
 
 

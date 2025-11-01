@@ -147,8 +147,9 @@ class Trainer:
         mode = str(self.cfg.experiment.mode).lower()  # 'min' or 'max'
         if not merge_train_val:
             # In search mode we require a validation metric for checkpointing/pruning
-            assert str(monitor_key).startswith("val_"), \
-                "monitor should be a validation metric (e.g., 'val_loss') when merge_train_val=False"
+            if not str(monitor_key).startswith("val_"):
+                msg = f"monitor should be a validation metric (e.g., 'val_loss') when merge_train_val=False, got {monitor_key} instead"
+                self.console_logger.warning(msg)
         val_every = int(self.cfg.trainer.hparams["val_every"])
 
         # Prepare tensors

@@ -218,7 +218,12 @@ def optuna_objective(trial: optuna.trial.Trial,
                                              report_cb=report_cb)
 
     # 7) return the scalar according to direction
+    tr_dict = fit_result[0]
     val_dict = fit_result[1]
-    val_metric = val_dict[config.experiment.monitor]
-    return val_metric  # study direction handles min/max
+    if config.experiment.monitor.startswith("val"):
+        metric = val_dict[config.experiment.monitor]
+    elif config.experiment.monitor.startswith("tr"):
+        metric = tr_dict[config.experiment.monitor]
+
+    return metric  # study direction handles min/max
 

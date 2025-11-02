@@ -44,8 +44,9 @@ trainer:
 model:
   name: "mlp"
   hparams:  
-    hidden_sizes: [512, 256, 256, 128] 
-    activation: [relu, relu, relu, relu]
+    mlp_hidden_sizes: [512, 256, 256, 128] 
+    mlp_activation: [relu, relu, relu, relu]
+    conv_activation: [relu, relu, relu]
     output_activation: linear
     conv_channels: [64, 128, 256]
     use_bn: False

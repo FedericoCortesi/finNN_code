@@ -14,8 +14,9 @@ class CNN1D(nn.Module):
 
         # --- get hyperparameters safely ---
         self.conv_channels = hparams.get("conv_channels", [16])
-        self.hidden_sizes  = hparams.get("hidden_sizes", [64])
-        self.activation    = hparams.get("activation", ["relu"])
+        self.mlp_hidden_sizes  = hparams.get("mlp_hidden_sizes", [64])
+        self.mlp_activation    = hparams.get("mlp_activation", ["relu"])
+        self.conv_activation    = hparams.get("conv_activation", ["relu"])
         self.use_bn        = hparams.get("use_bn", True)
         self.dropout_rate  = hparams.get("dropout_rate", 0.1)
         self.kernel_size   = hparams.get("kernel_size", 3)
@@ -34,19 +35,19 @@ class CNN1D(nn.Module):
         # ensure lists
         if isinstance(self.conv_channels, (int, str)):
             self.conv_channels = [int(self.conv_channels)]
-        if isinstance(self.hidden_sizes, int):
-            self.hidden_sizes = [self.hidden_sizes]
-        if isinstance(self.activation, str):
+        if isinstance(self.mlp_hidden_sizes, int):
+            self.mlp_hidden_sizes = [self.mlp_hidden_sizes]
+        if isinstance(self.conv_activation, str):
             # broadcast single activation to all conv blocks
-            self.activation = [self.activation] * len(self.conv_channels)
+            self.conv_activation = [self.conv_activation] * len(self.conv_channels)
 
-        assert len(self.activation) == len(self.conv_channels), \
+        assert len(self.conv_activation) == len(self.conv_channels), \
             "len(self.activation) and len(self.conv_channels) should be equal, " \
-            f"got {len(self.activation)} and {len(self.conv_channels)} instead"
+            f"got {len(self.conv_activation)} and {len(self.conv_channels)} instead"
     
         # --- build convolutional block(s) ---
         conv_layers = []
-        for out_ch, act_name in zip(self.conv_channels, self.activation):
+        for out_ch, act_name in zip(self.conv_channels, self.conv_activation):
             conv_layers.append(nn.Conv1d(self.in_ch, out_ch, kernel_size=self.kernel_size, padding=self.padding))
             if self.use_bn:
                 conv_layers.append(nn.BatchNorm1d(out_ch))
@@ -67,9 +68,9 @@ class CNN1D(nn.Module):
         # If we pool to k>1, FC sees channels * k features; if k==1, it’s just channels
         fc_layers = []
         in_dim = self.conv_channels[-1] * self.pool_k
-        for h in self.hidden_sizes:
+        for h, act_name in zip(self.mlp_hidden_sizes, self.mlp_activation):
             fc_layers.append(nn.Linear(in_dim, h))
-            fc_layers.append(nn.ReLU())  # keep as-is; make configurable later if you want
+            fc_layers.append(self._get_activation(act_name))  # keep as-is; make configurable later if you want
             if self.dropout_rate > 0:
                 fc_layers.append(nn.Dropout(self.dropout_rate))
             in_dim = h

@@ -71,12 +71,16 @@ def main():
     input_shape = cfg.walkforward.lags            # int is fine; build_model handles it
     max_folds = cfg.walkforward.max_folds
 
+    console_logger.debug(f"cfg.model.name: {cfg.model.name}")
+
     # define shapes
     def make_input_shape(c):
         if cfg.model.name.lower() == "mlp":
             return (c.walkforward.lags, )
         elif cfg.model.name.lower() == "simplecnn":
             return (1, cfg.walkforward.lags)  # (C, L)
+        elif cfg.model.name.lower() == "lstm":
+            return (cfg.walkforward.lags, 1)
         else:
             console_logger.warning(f"Model: {cfg.model.name} not recognized!")
             raise ValueError
@@ -178,6 +182,8 @@ def main():
 
 
         else:
+            input_shape = make_input_shape(cfg)
+            
             # Keep model creation inside the loop to avoid weight leakage across folds
             model = create_model(cfg.model, input_shape, output_shape)       
 

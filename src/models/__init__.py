@@ -26,6 +26,7 @@ def create_model(model_cfg: Dict[str, Any], input_shape: Tuple[int, ...], output
         try:
             importlib.import_module("models.mlp")
             importlib.import_module("models.simplecnn")
+            importlib.import_module("models.lstm")
         except Exception:
             pass
     if name not in _MODEL_REGISTRY:

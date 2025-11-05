@@ -22,7 +22,7 @@ class WFCVGenerator:
         df_long: Optional[pd.DataFrame] = None,   # None => call preprocess()
         time_col: str = "t",
     ):
-        self.console_logger = setup_logger("WFCVGenerator", "INFO")
+        self.console_logger = setup_logger("WFCVGenerator", "DEBUG")
         self.config = config
         self.console_logger.debug(self.config.summary())
 
@@ -94,8 +94,14 @@ class WFCVGenerator:
             result.append([slice(a,b), slice(b,c), slice(c,d)])
             t_0 += self.config.step
             folds_count += 1
+        
         self.folds_count = folds_count
+        msg = f"self.folds_count is zero! Check walkforward paramters, make sure train end does not exceeed {self.T}." 
+        msg = msg + f"Right now train, val, and test sizes are: {self.config.T_train}, {self.config.T_val}, {self.config.T_test}." 
+        assert self.folds_count != 0, msg 
         return result
+
+
 
 
     def _make_windows(self):
@@ -395,6 +401,8 @@ class WFCVGenerator:
         # pick master df and normalize/check once
         base = (df_master.copy() if df_master is not None else self.df_master.copy())
 
+        self.console_logger.debug(f'base: {base}')
+
         base = self._normalize_window_col(base)
         feat_cols = self._feature_cols(base)
         if self.config.lookback is not None and self.config.lookback > 0:
@@ -404,6 +412,7 @@ class WFCVGenerator:
             output_cols = ["y"]
 
         self.console_logger.debug(f"output_cols: {output_cols}")
+        self.console_logger.debug(f"self.folds_count: {self.folds_count}")
 
         for fold in range(self.folds_count):
             df_train, df_val, df_test = self.obtain_datasets_fold(fold, df_master=base)
@@ -440,12 +449,18 @@ class WFCVGenerator:
                 self.console_logger.debug(
                     f"Fold {fold} after clipping: train={len(Xtr)}, val={len(Xv)}, test={len(Xte)}"
                 )                
+            else:
+                self.console_logger.debug(
+                    f"Fold {fold}: train={len(Xtr)}, val={len(Xv)}, test={len(Xte)}"
+                )                
 
 
             if self.scale:
                 Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler = self._scale_split(
                     Xtr, ytr, Xv, yv, Xte, yte
                 )
+
+            self.console_logger.debug(f'Generating fold: {fold}')
 
             yield Xtr, ytr, Xv, yv, Xte, yte
 

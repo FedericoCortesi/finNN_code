@@ -63,6 +63,8 @@ def main():
     else:
         wf = WFCVGenerator(config=cfg.walkforward)
 
+    console_logger.debug(f'cfg.walkforward: {cfg.walkforward}')
+    
 
     # instantiate trainer (PyTorch)
     #trainer = Trainer(cfg, logger)
@@ -91,7 +93,7 @@ def main():
 
     # Get bool for search
     hyperparams_search = cfg.experiment.hyperparams_search
-
+    console_logger.debug(f' hyperparams_search {hyperparams_search}')
     # Create logger and trainer if just one specification
     if not hyperparams_search:
         console_logger.warning("No hyperparams search for this experiment")
@@ -106,6 +108,7 @@ def main():
         console_logger.debug(f"provided df master: {df_master_path}\n{df_master.head()}")
     else:
         df_master = None # needed for wf.folds()
+        console_logger.debug(f'df_master:\n{df_master}')
 
     # Warning before starting
     if cfg.walkforward.scale == True and cfg.trainer.hparams["loss"].lower() == "qlike":
@@ -113,6 +116,7 @@ def main():
 
     # -------- train per fold --------
     for fold, data in enumerate(wf.folds(df_master=df_master)):
+        console_logger.warning(f'Fold: {fold}')
         if max_folds is not None and fold >= max_folds:
             break  # allow running subset of folds
 

@@ -29,7 +29,7 @@ walkforward:
 
 trainer:
   hparams:
-    epochs: 100
+    epochs: 250
     batch_size: 512 # P. said 256-512 to "kill some noise"
     torch_patience: 75 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
@@ -38,20 +38,21 @@ trainer:
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
     lr: 1e-3
-    weight_decay: 5e-4 # change to zero
+    weight_decay: 1e-5 # change to zero
 
 
 model:
   name: "simplecnn"
   hparams:  
     conv_channels: [256, 256, 512]
-    activation:    [relu, relu, relu]
+    conv_activation:    [relu, relu, relu]
     kernel_size: 3
     padding: 1
     pool: adaptive_max
     pool_k: 64
     dropout_rate: 0
-    hidden_sizes:  [256, 128] 
+    mlp_hidden_sizes:  [256, 128] 
+    mlp_activation:    [relu, relu]
     dropout_rate:  0.0
     use_bn: False       # if batch size ≥ 256; else keep False or use LayerNorm
     output_activation: linear

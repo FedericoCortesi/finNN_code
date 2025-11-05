@@ -1,5 +1,5 @@
 experiment:
-  name: "mlp_40"
+  name: "debug"
   type: "price_prediction"
   random_state: 1234
   monitor: "val_loss"
@@ -23,22 +23,22 @@ walkforward:
   ratio_test: 1
   lags: 40
   scale: True
-  clip: False
+  clip: True
   #purge_days: 20
   #embargo_days: 20
 
 trainer:
   hparams:
-    epochs: 100
+    epochs: 250
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    torch_patience: 50 # if empty early stopping is not active
+    torch_patience: 75 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
     optuna_patience: 25  
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    lr: 1e-4
-    weight_decay:  1e-2 # change to zero
+    lr: 1e-3
+    weight_decay:  5e-3 # change to zero
 
 
 model:

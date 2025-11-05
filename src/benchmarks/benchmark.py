@@ -15,12 +15,12 @@ from utils.paths import DATA_DIR, PRICE_EXPERIMENTS_DIR, VOL_EXPERIMENTS_DIR
 # =========================
 # Config
 # =========================
-NAME  = "exp_006_cnn_40"
-TRIAL = "trial_20251101_155014"
+NAME  = "exp_007_mlp_40"
+TRIAL = "trial_20251102_114602"
 BASE  = Path(VOL_EXPERIMENTS_DIR) / NAME / TRIAL
 ACCURACY: int = 8
 
-print(f'Analyzing: {NAME}/{TRIAL}')
+print(f'Analyze {BASE}')
 
 # Normalize MSE by target variance on each split
 USE_NMSE = False

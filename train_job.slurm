@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -p mit_normal_gpu            # partition (GPU queue)
-#SBATCH --gres=gpu:1                 # request 1 GPU (adjust if needed)
-#SBATCH --cpus-per-task=16           # number of CPU cores
+#SBATCH --gres=gpu:h200:1            # request 1 GPU (adjust if needed)
+#SBATCH --cpus-per-task=8           # number of CPU cores
 #SBATCH --mem=128G                   # memory
 #SBATCH -J finnn_train               # job name
 #SBATCH -o logs/slurm_%j.out         # stdout log

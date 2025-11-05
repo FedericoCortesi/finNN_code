@@ -29,15 +29,15 @@ walkforward:
 
 trainer:
   hparams:
-    epochs: 500
+    epochs: 250
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    torch_patience: # if empty early stopping is not active
+    torch_patience: 75 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
     optuna_patience: 50  
     loss: "mse" #qlike doesnt work for vol as of now :(
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    lr: 1e-4
+    lr: 3e-3
     weight_decay:  0
 
 

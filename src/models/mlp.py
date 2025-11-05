@@ -18,13 +18,13 @@ class MLPRegressor(nn.Module):
         self.console_logger = setup_logger(name="MLP", level="INFO")
 
         # get values
-        hidden_sizes = [int(h) for h in hparams.get("hidden_sizes", [])]
+        hidden_sizes = [int(h) for h in hparams.get("mlp_hidden_sizes", [])]
         dropout = float(hparams.get("dropout", hparams.get("dropout_rate", 0.2)))
         out_act = hparams.get("output_activation", None)
 
         # default activations: ReLU for all hidden, Linear for last
         fallback_activations = ["relu"] * (len(hidden_sizes) - 1) + ["linear"]
-        activations = hparams.get("activation", fallback_activations)
+        activations = hparams.get("mlp_activation", fallback_activations)
 
         if isinstance(activations, str):
             old_activation = activations # just to print

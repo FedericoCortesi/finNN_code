@@ -31,7 +31,7 @@ class Trainer:
         self.logger = logger
         
         # console logging, mainly fro debugging
-        self.console_logger = setup_logger("Trainer", level="INFO")
+        self.console_logger = setup_logger("Trainer", level="DEBUG")
         
         self.device = torch.device("cuda")
         # Fail if cuda (=GPU) not available
@@ -81,8 +81,13 @@ class Trainer:
             fused=True
         )
         try:
-            # avoid cnn bug
-            if self.cfg.model.name.lower() == "simplecnn":
+            name = self.cfg.model.name.lower()
+            if name in ("lstm", "gru", "rnn"):        
+                # safest: skip compile for recurrent nets
+                pass
+                # or, if you want some speed but safe graph breaks:
+                # self.model = torch.compile(self.model, backend="eager", fullgraph=False)
+            elif name == "simplecnn":
                 self.model = torch.compile(self.model, backend="eager", fullgraph=False)
             else:
                 self.model = torch.compile(self.model)
@@ -94,23 +99,46 @@ class Trainer:
         for i in range(0, n, batch_size):
             yield X[i:i+batch_size], y[i:i+batch_size]
 
-    @torch.no_grad()
-    def _evaluate_fold(self, X: np.ndarray, y: np.ndarray) -> Dict[str, float]:
+    @torch.inference_mode()
+    def _evaluate_fold(self, X: np.ndarray, y: np.ndarray, eval_bs: int = 8192) -> Dict[str, float]:
         """
-        Fuction to evaluate the performance at the end of a fold
+        Memory-safe evaluation: iterate in batches and stream the metrics.
         """
         self.model.eval()
-        X_t = torch.as_tensor(X, dtype=torch.float32, device=self.device)
-        y_t = torch.as_tensor(y, dtype=torch.float32, device=self.device)
 
-        pred = self.model(X_t).squeeze(-1)
-        loss_val = self.loss_fn(pred, y_t).item()
+        n = 0
+        loss_sum = 0.0
+        mae_sum  = 0.0
+        mse_sum  = 0.0
+        diracc_correct = 0
+
+        # You can safely use bf16 autocast for *inference* to trim memory
+        name = self.cfg.model.name.lower()
+        use_amp_eval = (name not in ("lstm", "gru", "rnn"))  # if you want to keep LSTM eval in fp32, set False
+        amp_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=use_amp_eval)
+
+        for i in range(0, len(X), eval_bs):
+            xb = torch.as_tensor(X[i:i+eval_bs], dtype=torch.float32, device=self.device)
+            yb = torch.as_tensor(y[i:i+eval_bs], dtype=torch.float32, device=self.device)
+            if yb.ndim == 2 and yb.size(-1) == 1:
+                yb = yb.squeeze(-1)
+
+            with amp_ctx:
+                pb = self.model(xb).squeeze(-1)
+                lb = self.loss_fn(pb, yb)
+
+            b = yb.numel()
+            loss_sum += float(lb) * b
+            mae_sum  += torch.nn.functional.l1_loss(pb, yb, reduction="sum").item()
+            mse_sum  += torch.nn.functional.mse_loss(pb, yb, reduction="sum").item()
+            diracc_correct += (torch.sign(pb) == torch.sign(yb)).sum().item()
+            n += b
 
         return {
-            "loss": loss_val,
-            "mae": _mae(pred, y_t),
-            "mse": _mse(pred, y_t),
-            "directional_accuracy_pct": _directional_accuracy_pct(pred, y_t),
+            "loss": loss_sum / n,
+            "mae":  mae_sum  / n,
+            "mse":  mse_sum  / n,
+            "directional_accuracy_pct": 100.0 * diracc_correct / n,
         }
 
     def _y_to_tensor(self, y):
@@ -195,7 +223,7 @@ class Trainer:
         yb_chunks = torch.split(ytr_shuffled, batch_size, dim=0)
 
         # AMP is optional, keep it off for minimalism; enable if you want:
-        use_amp = True
+        use_amp = False # Sometime is better off
         amp_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=use_amp)
 
         # define variables for grad descent
@@ -222,7 +250,12 @@ class Trainer:
                 f"Y's shapes: train {ytr_tensor.shape}, test {yte_tensor.shape}"
 
         self.console_logger.info(msg)
-        self.console_logger.debug(f"np.std(ytr),np.std(yv),np.std(yte): {np.std(ytr),np.std(yv),np.std(yte)}")
+        self.console_logger.debug(f"np.var(ytr),np.var(yv),np.var(yte): {np.var(ytr),np.var(yv),np.var(yte)}")
+
+        # debug optimizer and model
+        model_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        opt_params   = sum(p.numel() for g in self.optimizer.param_groups for p in g["params"] if p.requires_grad)
+        self.console_logger.debug(f"param_count model={model_params} optimizer={opt_params}")
 
         effective_epochs = 0
         # iterate over epochs
@@ -254,10 +287,10 @@ class Trainer:
             if not merge_train_val:
                 if epoch % val_every == 0 or epoch == epochs or epoch == 1:
                     self.model.eval()
-                    with torch.no_grad(), amp_ctx:
-                        vpred = self.model(Xv_tensor).squeeze(-1)
-                        vloss = self.loss_fn(vpred, yv_tensor).item()
+                    with torch.inference_mode():
+                        eval_out = self._evaluate_fold(Xv_tensor, yv_tensor)
                         # average train loss once per epoch (one CPU sync)
+                    vloss = float(eval_out.get("loss", np.nan))
 
                     history.append({"tr_loss":tr_loss_avg, "val_loss":vloss})
                     self.console_logger.info(
@@ -312,9 +345,14 @@ class Trainer:
             if epoch % 1 == 0:  # only every 10 epochs to avoid overhead
                 with torch.no_grad():
                     grad_means = {}
+                    total_norm = 0
                     for name, p in self.model.named_parameters():
                         if p.grad is not None:
                             grad_means[name] = p.grad.abs().mean().item()
+                            param_norm = p.grad.data.norm(2)
+                            total_norm += param_norm.item()**2
+                    total_norm = total_norm ** 0.5
+                    self.console_logger.debug(f'Grad L2 norm: {total_norm}')
                     grad_history.append({"epoch": epoch, **grad_means})
 
             effective_epochs += 1

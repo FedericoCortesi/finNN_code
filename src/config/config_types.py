@@ -54,16 +54,20 @@ class TrainerConfig:
 class WFConfig:
     """Configuration for Walk-Forward Cross-Validation."""
 
-    target_col: str = "ret"    # target column for regression
-    lookback: int = 0          # Last N observations to include in the y vector 
-    ratio_train: int = 3       # x test
-    ratio_val: int = 1         # x test
-    ratio_test: int = 1        # base value = step
-    step: int = 251            # trading days per 'year'
-    lags: int = 20             # number of past days as features
+    target_col: str = "ret"          # target column for regression
+    lookback: int = 0                # Last N observations to include in the y vector 
+    ratio_train: int = 3             # x test
+    ratio_val: int = 1               # x test
+    ratio_test: int = 1              # base value = step
+    step: int = 251                  # trading days per 'year'
+    lags: int = 20                   # number of past days as features
     max_folds: Optional[int] = None  # optional cap on folds
-    scale: bool = False  # optional scale or not
-    clip: bool = False
+    min_folds: Optional[int] = None  # optional floor on folds
+    scale: bool = False              # optional scale or not 
+    annualize: bool = False          # optional annualize 
+    scale_type: str = "standard"     # type of scaler (standard, robust)
+    clip: float = 0                  # Winsorization, this will be alpha and 
+                                     # the result will be [z_clip, z_(1-clip)] 
 
     def __post_init__(self):
         # Derived absolute lengths
@@ -79,7 +83,12 @@ class WFConfig:
 
         v = getattr(self, "lookback")
         if not isinstance(v, int) or v < 0:
-            raise ValueError(f"{name} must be a non-negative integer, got {v}")
+            raise ValueError(f"lookback must be a non-negative integer, got {v}")
+            
+
+        v = float(getattr(self, "clip"))
+        if not isinstance(v, float) or v < 0:
+            raise ValueError(f"clip  must be non-negative, got {v}")
             
 
         assert self.lookback < self.lags, f"Lags must be longer than lookback, got {self.lookback} and {self.lags} instead"

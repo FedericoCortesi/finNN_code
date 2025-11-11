@@ -158,7 +158,7 @@ def create_time_index(df:pd.DataFrame):
 
     return df
 
-def compute_variance(df:pd.DataFrame):
+def compute_variance(df:pd.DataFrame, annualize_var:bool=False):
     df = df.copy()
     
     # Pre-calculate the constant value
@@ -176,6 +176,9 @@ def compute_variance(df:pd.DataFrame):
     
     df["var"] = 0.5 * (log_hl ** 2) - C2 * (log_co ** 2)
 
+    if annualize_var: 
+        df["var"] = 252 * df["var"]
+
     console_logger.debug(f"number of nans in var: {df["var"].isna().sum()}")
     df = df.dropna()
 
@@ -184,7 +187,8 @@ def compute_variance(df:pd.DataFrame):
 def preprocess(path:str=SP500_PATH, 
                nan_imputation:bool=True,
                ohlc_rets:bool=False,
-               variance:bool=True):
+               variance:bool=True,
+               annualize_var:bool=False):
     df = import_data(path)
     # we dont need to refactor since we only look
     # at ratios for volatility.
@@ -196,7 +200,7 @@ def preprocess(path:str=SP500_PATH,
         df = create_ohlc_returns(df)
     
     if variance:
-        df = compute_variance(df)
+        df = compute_variance(df, annualize_var)
 
     df = create_time_index(df)
 

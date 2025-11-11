@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
 
 
 import ast
@@ -12,46 +13,50 @@ from pipeline.preprocessing import preprocess
 from config.config_types import WFConfig
 
 from utils.custom_formatter import setup_logger
-
+from  utils.paths import SP500_PATH, DATA_DIR
 
 class WFCVGenerator:
     def __init__(
         self,
         config: WFConfig,
         id_col: str = "permno",
-        df_long: Optional[pd.DataFrame] = None,   # None => call preprocess()
+        df_long: str = None,   # None => call preprocess()
         time_col: str = "t",
     ):
-        self.console_logger = setup_logger("WFCVGenerator", "DEBUG")
+        self.console_logger = setup_logger("WFCVGenerator", "INFO")
         self.config = config
         self.console_logger.debug(self.config.summary())
 
-        self.id_col, self.time_col = id_col, time_col
-        self.target_col = config.target_col
 
-        self.scale = config.scale 
+        self.scale = self.config.scale 
+        self.scale_type = self.config.scale_type 
         if self.scale is None:
             self.scale = False
+        
+        if self.scale_type is None and self.scale:
+            self.scale_type = "standard"
+        elif self.scale_type is not None:
+            self.scale_type = self.config.scale_type.lower() 
 
+        self.console_logger.debug(f'self.scale_type: {self.scale_type}')
+        self.console_logger.debug(f'self.scale: {self.scale}')
+
+        self.id_col, self.time_col = id_col, time_col
+        self.target_col = self.config.target_col
+        
         self.df = self._load_df(df_long)  # validated & trimmed
-        self.console_logger.debug(f"Predicting {self.target_col}")
-        self.console_logger.debug(f"self.df.columns: {self.df.columns}")
-
 
         # now safe to proceed
         self.T = self.df[self.time_col].nunique()
         self.stamps_and_windows_array = self._make_windows()
         self.df_master = self._build_master_df()
 
-    def _load_df(self, df_long: Optional[pd.DataFrame]) -> pd.DataFrame:
+    def _load_df(self, df_long: str) -> pd.DataFrame:
         if df_long is None:
-            self.console_logger.debug("Loading data via preprocess()")
-            df = preprocess()[[self.time_col, self.target_col, self.id_col]].copy()
+            df = preprocess(annualize_var=self.config.annualize)[[self.time_col, self.target_col, self.id_col]].copy()
         else:
-            if df_long.empty:
-                raise ValueError("df_long was provided but is empty.")
-            df = df_long.copy()
-
+            df = preprocess(path=f'{DATA_DIR}/df_long', annualize_var=self.config.annualize)[[self.time_col, self.target_col, self.id_col]].copy()
+            
         # validate required columns
         required = {self.time_col, self.target_col, self.id_col}
         missing = required - set(df.columns)
@@ -66,11 +71,8 @@ class WFCVGenerator:
         if not pd.api.types.is_integer_dtype(df[self.id_col]):
             df[self.id_col] = pd.to_numeric(df[self.id_col], errors="raise", downcast="integer")
 
-        # basic log: shape + dtypes + head
-        self.console_logger.debug(
-            "Loaded df: shape=%s dtypes=%s head=\n%s",
-            df.shape, df.dtypes.to_dict(), df.head(3).to_string(index=False)
-        )
+
+        self.console_logger.debug(f'Preprocessed df: {df}')
         return df
 
 
@@ -204,7 +206,7 @@ class WFCVGenerator:
             #    First L columns → features, last col → y
             df_block = pd.DataFrame(block, columns=out_cols)
 
-            # add window informatio
+            # add window debugrmatio
             df_block["window"] = [(a,b)]*len(df_block)
 
 
@@ -348,7 +350,7 @@ class WFCVGenerator:
             cols_sorted = sorted(cols)  # fallback alphabetical
         return cols_sorted
 
-    def _scale_split(
+    def scale_split(
         self,
         Xtr, ytr, Xv, yv, Xte, yte,
         scale_X=True, scale_y=True,
@@ -369,25 +371,161 @@ class WFCVGenerator:
         X_scaler = None
         y_scaler = None
 
+        self.console_logger.debug(f'self.scale_type: {self.scale_type}')
+        self.console_logger.debug(f'scale_X: {scale_X}')
+        self.console_logger.debug(f'scale_y: {scale_y}')
+        
         # --- Scale X ---
         if scale_X:
-            X_scaler = StandardScaler(copy=False)
-            Xtr = X_scaler.fit_transform(Xtr)
-            Xv  = X_scaler.transform(Xv)
-            Xte = X_scaler.transform(Xte)
+            if self.scale_type == "standard":
+                X_scaler = StandardScaler(copy=False)
+                Xtr = X_scaler.fit_transform(Xtr)
+                Xv  = X_scaler.transform(Xv)
+                Xte = X_scaler.transform(Xte)
+            elif self.scale_type == "robust":
+                X_scaler = RobustScaler(quantile_range=(25, 75))
+                Xtr = X_scaler.fit_transform(Xtr)
+                Xv  = X_scaler.transform(Xv)
+                Xte = X_scaler.transform(Xte)
+            elif self.scale_type == "asinh":
+                X_scaler = None
+                Xtr = np.arcsinh(Xtr)
+                Xv  = np.arcsinh(Xv)
+                Xte = np.arcsinh(Xte)
+            elif self.scale_type == "log":
+                X_scaler = None
+                Xtr = np.log(Xtr)
+                Xv  = np.log(Xv)
+                Xte = np.log(Xte)
+            elif self.scale_type == "log1p":
+                X_scaler = None
+                Xtr = np.log1p(Xtr)
+                Xv  = np.log1p(Xv)
+                Xte = np.log1p(Xte)
+            elif self.scale_type == "asinhstandard":
+                self.console_logger.debug(f'Here: {self.scale_type}')
+                # Asinh transform
+                Xtr = np.arcsinh(Xtr)
+                Xv  = np.arcsinh(Xv)
+                Xte = np.arcsinh(Xte)
+                # Standard
+                X_scaler = StandardScaler(copy=False)
+                Xtr = X_scaler.fit_transform(Xtr)
+                Xv  = X_scaler.transform(Xv)
+                Xte = X_scaler.transform(Xte)
+            elif self.scale_type == "log1pstandard":
+                # log transform
+                Xtr = np.log1p(Xtr)
+                Xv  = np.log1p(Xv)
+                Xte = np.log1p(Xte)
+                # Standard
+                X_scaler = StandardScaler(copy=False)
+                Xtr = X_scaler.fit_transform(Xtr)
+                Xv  = X_scaler.transform(Xv)
+                Xte = X_scaler.transform(Xte)
+            elif self.scale_type == "logstandard":
+                # log transform
+                Xtr = np.log(Xtr)
+                Xv  = np.log(Xv)
+                Xte = np.log(Xte)
+                # Standard
+                X_scaler = StandardScaler(copy=False)
+                Xtr = X_scaler.fit_transform(Xtr)
+                Xv  = X_scaler.transform(Xv)
+                Xte = X_scaler.transform(Xte)
+            elif self.scale_type == "sqrtstandard":
+                # Asinh transform
+                Xtr = np.sqrt(1+Xtr)
+                Xv  = np.sqrt(1+Xv)
+                Xte = np.sqrt(1+Xte)
+                # Standard
+                X_scaler = StandardScaler(copy=False)
+                Xtr = X_scaler.fit_transform(Xtr)
+                Xv  = X_scaler.transform(Xv)
+                Xte = X_scaler.transform(Xte)
+            else:
+                raise ValueError(f"Unknown scale_type: {self.scale_type}")
 
         # --- Convert dtype (important for GPU) ---
         Xtr = Xtr.astype(dtype, copy=False)
         Xv  = Xv.astype(dtype,  copy=False)
         Xte = Xte.astype(dtype, copy=False)
 
-        # --- Scale y (optional) ---
-        if scale_y and ytr is not None:
-            # sklearn expects 2D input: shape (n_samples, n_features)
-            y_scaler = StandardScaler()
-            ytr = y_scaler.fit_transform(ytr)
-            yv = y_scaler.transform(yv)
-            yte = y_scaler.transform(yte)
+        # --- Scale y ---
+        if scale_y:
+            if self.scale_type == "standard":
+                y_scaler = StandardScaler(copy=False)
+                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1)) # makes it 2D, necessary for sklearn
+                yv  = y_scaler.transform(yv.reshape(-1, 1))
+                yte = y_scaler.transform(yte.reshape(-1, 1))
+            elif self.scale_type == "robust":
+                y_scaler = RobustScaler(quantile_range=(25, 75))
+                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1))
+                yv  = y_scaler.transform(yv.reshape(-1, 1))
+                yte = y_scaler.transform(yte.reshape(-1, 1))
+            elif self.scale_type == "asinh":
+                y_scaler = None
+                ytr = np.arcsinh(ytr)
+                yv  = np.arcsinh(yv)
+                yte = np.arcsinh(yte)
+            elif self.scale_type == "log1p":
+                y_scaler = None
+                ytr = np.log1p(ytr)
+                yv  = np.log1p(yv)
+                yte = np.log1p(yte)
+            elif self.scale_type == "log":
+                y_scaler = None
+                ytr = np.log(ytr)
+                yv  = np.log(yv)
+                yte = np.log(yte)
+            elif self.scale_type == "asinhstandard":
+                self.console_logger.debug(f'Here: {self.scale_type}')
+                ytr = np.arcsinh(ytr)
+                yv  = np.arcsinh(yv)
+                yte = np.arcsinh(yte)
+                y_scaler = StandardScaler(copy=False)
+                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1)) # makes it 2D, necessary for sklearn
+                yv  = y_scaler.transform(yv.reshape(-1, 1))
+                yte = y_scaler.transform(yte.reshape(-1, 1))
+            elif self.scale_type == "log1pstandard":
+                self.console_logger.debug(f'Here: {self.scale_type}')
+                # log transform
+                ytr = np.log1p(ytr)
+                yv  = np.log1p(yv)
+                yte = np.log1p(yte)
+                # Standard
+                y_scaler = StandardScaler(copy=False)
+                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1)) # makes it 2D, necessary for sklearn
+                yv  = y_scaler.transform(yv.reshape(-1, 1))
+                yte = y_scaler.transform(yte.reshape(-1, 1))
+            elif self.scale_type == "logstandard":
+                # log transform
+                ytr = np.log(ytr)
+                yv  = np.log(yv)
+                yte = np.log(yte)
+                # Standard
+                y_scaler = StandardScaler(copy=False)
+                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1))
+                yv  = y_scaler.transform(yv.reshape(-1, 1))
+                yte = y_scaler.transform(yte.reshape(-1, 1))
+            elif self.scale_type == "sqrtstandard":
+                self.console_logger.debug(f'Here: {self.scale_type}')
+                # Asinh transform
+                ytr = np.sqrt(1+ytr)
+                yv  = np.sqrt(1+yv)
+                yte = np.sqrt(1+yte)
+                # Standard
+                y_scaler = StandardScaler(copy=False)
+                ytr = y_scaler.fit_transform(ytr)
+                yv  = y_scaler.transform(yv)
+                yte = y_scaler.transform(yte)
+            else:
+                raise ValueError(f"Unknown scale_type: {self.scale_type}")
+
+            # Flatten back to (N,)
+            ytr = ytr.astype(dtype, copy=False).ravel()
+            yv  = yv.astype(dtype,  copy=False).ravel()
+            yte = yte.astype(dtype, copy=False).ravel()
 
         return Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler
 
@@ -401,7 +539,6 @@ class WFCVGenerator:
         # pick master df and normalize/check once
         base = (df_master.copy() if df_master is not None else self.df_master.copy())
 
-        self.console_logger.debug(f'base: {base}')
 
         base = self._normalize_window_col(base)
         feat_cols = self._feature_cols(base)
@@ -429,17 +566,43 @@ class WFCVGenerator:
             Xte = df_test[feat_cols].to_numpy(dtype=np.float64)
             yte = df_test[[*output_cols]].to_numpy(dtype=np.float64) # ensure its a list
 
-            #debug
-            if self.config.clip:
-                # Calculate 99th percentile threshold from training data only
+            
+            if self.config.clip is not None and self.config.clip !=0:
+                self.console_logger.debug(f'self.config.clip: {self.config.clip}')
+                # Calculate percentiles threshold from training data only
+                # TODO: MIGHT BE LEAKING, CHECK THIS!
                 X_flat = Xtr.flatten()
-                lower_threshold = np.percentile(X_flat, 0.5)  # 0.5th percentile
-                upper_threshold = np.percentile(X_flat, 99.5)  # 99.5th percentile
+                y_flat = ytr.flatten()
+                lower_threshold_x = np.percentile(X_flat, self.config.clip)  # 0.5th percentile
+                upper_threshold_x = np.percentile(X_flat, 100-self.config.clip)  # 99.5th percentile
+                lower_threshold_y = np.percentile(y_flat, self.config.clip)  # 0.5th percentile
+                upper_threshold_y = np.percentile(y_flat, 100-self.config.clip)  # 99.5th percentile
                 
+                
+                lower_threshold = min(lower_threshold_x, lower_threshold_y)
+                upper_threshold = max(upper_threshold_x, upper_threshold_y)
+                #lower_threshold = -4
+                #upper_threshold = 4
+
                 # Find rows to keep in each set (all features within percentile range)
-                train_mask = np.all((Xtr >= lower_threshold) & (Xtr <= upper_threshold), axis=1)
-                val_mask = np.all((Xv >= lower_threshold) & (Xv <= upper_threshold), axis=1)
-                test_mask = np.all((Xte >= lower_threshold) & (Xte <= upper_threshold), axis=1)
+                #train_mask = np.all((Xtr >= lower_threshold) & (Xtr <= upper_threshold), axis=1)
+                #val_mask = np.all((Xv >= lower_threshold) & (Xv <= upper_threshold), axis=1)
+                #test_mask = np.all((Xte >= lower_threshold) & (Xte <= upper_threshold), axis=1)
+                
+                
+                train_mask_x = np.all((Xtr >= lower_threshold) & (Xtr <= upper_threshold), axis=1)
+                train_mask_y = np.all((ytr >= lower_threshold) & (ytr <= upper_threshold), axis=1)
+                train_mask = train_mask_y & train_mask_x # AND, keep only if both are True i.e. in bounds 
+                
+                val_mask_x = np.all((Xv >= lower_threshold) & (Xv <= upper_threshold), axis=1)
+                val_mask_y = np.all((yv >= lower_threshold) & (yv <= upper_threshold), axis=1)
+                val_mask = val_mask_y & val_mask_x
+                
+                test_mask_x = np.all((Xte >= lower_threshold) & (Xte <= upper_threshold), axis=1)
+                test_mask_y = np.all((yte >= lower_threshold) & (yte <= upper_threshold), axis=1)
+                test_mask = test_mask_y & test_mask_x
+                
+                self.console_logger.debug(f'Shapes of Xtr, Xv, Xte before clipping:  {Xtr.shape}, {Xv.shape}, {Xte.shape}')
                 
                 # Apply masks to both X and y
                 Xtr, ytr = Xtr[train_mask], ytr[train_mask]
@@ -447,7 +610,10 @@ class WFCVGenerator:
                 Xte, yte = Xte[test_mask], yte[test_mask]
                 
                 self.console_logger.debug(
-                    f"Fold {fold} after clipping: train={len(Xtr)}, val={len(Xv)}, test={len(Xte)}"
+                    f"Fold {fold} after clipping (y): train={ytr.shape}, val={yv.shape}, test={yte.shape}"
+                )                
+                self.console_logger.debug(
+                    f"Fold {fold} after clipping (X): train={Xtr.shape}, val={Xv.shape}, test={Xte.shape}"
                 )                
             else:
                 self.console_logger.debug(
@@ -456,7 +622,7 @@ class WFCVGenerator:
 
 
             if self.scale:
-                Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler = self._scale_split(
+                Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler = self.scale_split(
                     Xtr, ytr, Xv, yv, Xte, yte
                 )
 

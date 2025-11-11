@@ -1,6 +1,7 @@
 import argparse
 from functools import partial
 import pandas as pd
+import numpy as np
 import optuna
 from optuna.pruners import SuccessiveHalvingPruner
 from optuna.samplers import TPESampler
@@ -56,12 +57,15 @@ def main():
     #logger = ExperimentLogger(cfg)
     #data_path = cfg.data.get("df_path")
 
+    df_long = cfg.data.get("df_long", None)  
+
     if args.data:
-        df = pd.read_parquet(args.data)
+        df = args.data
         wf = WFCVGenerator(df_long=df, 
                            config=cfg.walkforward)
     else:
-        wf = WFCVGenerator(config=cfg.walkforward)
+        wf = WFCVGenerator(df_long=df_long,
+                           config=cfg.walkforward)
 
     console_logger.debug(f'cfg.walkforward: {cfg.walkforward}')
     
@@ -71,6 +75,7 @@ def main():
 
     # model input size: number of lags (columns are constant across folds)
     input_shape = cfg.walkforward.lags            # int is fine; build_model handles it
+    min_folds = cfg.walkforward.min_folds
     max_folds = cfg.walkforward.max_folds
 
     console_logger.debug(f"cfg.model.name: {cfg.model.name}")
@@ -117,6 +122,9 @@ def main():
     # -------- train per fold --------
     for fold, data in enumerate(wf.folds(df_master=df_master)):
         console_logger.warning(f'Fold: {fold}')
+        
+        if min_folds is not None and fold <  min_folds:
+            continue
         if max_folds is not None and fold >= max_folds:
             break  # allow running subset of folds
 

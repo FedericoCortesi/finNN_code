@@ -1,44 +1,46 @@
 experiment:
-  name: "debug"
+  name: "lstm_40"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
   mode: "min"
-  n_trials: 10 # for random search 
+  n_trials: 25 # for random search 
   random_state: 42 # for reproducibility
   hyperparams_search: False
 
 # this whole thing might be useless
 data: 
-  # df_path: "data/sp500_daily_data.parquet" # if left out the pipeline takes it automatically
-  df_master:  # if left out the pipeline takes it automatically
+  df_path:  # if left out the pipeline takes it automatically
+  df_master: # if left out the pipeline takes it automatically
 
 walkforward:
   target_col: var
-  lookback: 5
+  lookback: 0
   max_folds: 
-  step: 300
+  step: 251
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 100
-  scale: False
-  clip: True
+  lags: 40
+  scale: True
+  annualize: True
+  scale_type: logstandard 
+  clip: 0.5
   #purge_days: 20
   #embargo_days: 20
 
 trainer:
   hparams:
-    epochs: 100
+    epochs: 500
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    torch_patience:  # if empty early stopping is not active
+    torch_patience: 25 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
     optuna_patience: 25  
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    lr: 1e-4
-    weight_decay:  0 # change to zero
+    weight_decay: 0
+    lr: 3e-3
 
 model:
   name: "lstm"
@@ -46,14 +48,14 @@ model:
     # ==========================
     #  MLP HEAD PARAMETERS
     # ==========================
-    mlp_hidden_sizes: [512, 256]      # Fully connected layers after LSTM readout
-    mlp_activation: [relu, relu]    # Activations for each MLP layer
+    mlp_hidden_sizes: [512, 256]                # Fully connected layers after LSTM readout
+    mlp_activation: [relu, relu]                # Activations for each MLP layer
     dropout_rate: 0                             # Dropout applied in MLP layers
 
     # ==========================
     #  LSTM CORE PARAMETERS
     # ==========================
-    lstm_hidden_sizes: [128, 128]     # Hidden size(s) of the LSTM (stack depth = len(list))
+    lstm_hidden_sizes: [256, 256]               # Hidden size(s) of the LSTM (stack depth = len(list))
     lstm_dropout: 0                             # Dropout between stacked LSTM layers
     bidirectional: False                        # If True, concatenates forward & backward hidden states
     readout: last                               # "last" | "mean" | "max"  → how to summarize sequence output

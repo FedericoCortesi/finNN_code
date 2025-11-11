@@ -15,15 +15,16 @@ data:
 
 walkforward:
   target_col: var
-  lookback: 5
+  lookback: 0
   max_folds: 
-  step: 251
+  step: 400
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 40
-  scale: False
-  clip: True
+  lags: 100
+  scale: True
+  scale_type: asinhstandard
+  clip: 2.5
   #purge_days: 20
   #embargo_days: 20
 

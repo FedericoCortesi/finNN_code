@@ -117,6 +117,9 @@ class Trainer:
         use_amp_eval = (name not in ("lstm", "gru", "rnn"))  # if you want to keep LSTM eval in fp32, set False
         amp_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=use_amp_eval)
 
+        self.console_logger.debug(f'X shape: {X.shape}')
+        self.console_logger.debug(f'y shape: {y.shape}')
+
         for i in range(0, len(X), eval_bs):
             xb = torch.as_tensor(X[i:i+eval_bs], dtype=torch.float32, device=self.device)
             yb = torch.as_tensor(y[i:i+eval_bs], dtype=torch.float32, device=self.device)
@@ -250,8 +253,14 @@ class Trainer:
                 f"Y's shapes: train {ytr_tensor.shape}, test {yte_tensor.shape}"
 
         self.console_logger.info(msg)
-        self.console_logger.debug(f"np.var(ytr),np.var(yv),np.var(yte): {np.var(ytr),np.var(yv),np.var(yte)}")
 
+        # Info on datasets
+        percentiles = [0, 0.5, 1, 5, 25, 50, 75, 95, 99, 99.5, 100]
+        self.console_logger.debug(f"np.var(ytr),np.var(yv),np.var(yte): {np.var(ytr):.8f},{np.var(yv):.8f},{np.var(yte):.8f}")
+        self.console_logger.debug(f"Y train, val, test {percentiles}:\n{np.percentile(ytr, percentiles)}\n{np.percentile(yv, percentiles)}\n{np.percentile(yte, percentiles)}")
+        self.console_logger.debug(f"np.var(Xtr),np.var(Xv),np.var(Xte): {np.var(Xtr):.8f},{np.var(Xv):.8f},{np.var(Xte):.8f}")
+        self.console_logger.debug(f"X train, val, test {percentiles}:\n{np.percentile(Xtr, percentiles)}\n{np.percentile(Xv, percentiles)}\n{np.percentile(Xte, percentiles)}")
+        
         # debug optimizer and model
         model_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         opt_params   = sum(p.numel() for g in self.optimizer.param_groups for p in g["params"] if p.requires_grad)

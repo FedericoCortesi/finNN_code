@@ -23,7 +23,7 @@ walkforward:
   ratio_test: 1
   lags: 40
   scale: True
-  clip: True
+  clip: 2.5
   #purge_days: 20
   #embargo_days: 20
 
@@ -38,7 +38,7 @@ trainer:
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
     lr: 1e-3
-    weight_decay:  5e-3 # change to zero
+    weight_decay:  65e-4 # change to zero
 
 
 model:

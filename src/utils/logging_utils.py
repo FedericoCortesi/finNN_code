@@ -127,6 +127,7 @@ class ExperimentLogger:
                     "tr_loss,val_loss,test_loss,"
                     "tr_mae,val_mae,test_mae,"
                     "tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,"
+                    "tr_undershooting_pct,val_undershooting_pct,test_undershooting_pct,"
                     "seconds,model_path\n"
                 )
 
@@ -176,6 +177,7 @@ class ExperimentLogger:
             f"{kw.get('tr_loss','')},{kw['val_loss']},{kw['test_loss']},"
             f"{kw.get('tr_mae','')},{kw.get('val_mae','')},{kw.get('test_mae','')},"
             f"{kw.get('tr_directional_accuracy_pct','')},{kw.get('val_directional_accuracy_pct','')},{kw.get('test_directional_accuracy_pct','')},"
+            f"{kw.get('tr_undershooting_pct','')},{kw.get('val_undershooting_pct','')},{kw.get('test_undershooting_pct','')},"
             f"{kw.get('seconds','')},{kw.get('model_path','')}\n"
         )
         with open(self.results_csv, "a") as f:

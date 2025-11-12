@@ -50,7 +50,7 @@ def dir_acc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 def undershooting(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """percentage of predictions lower than true all dims & samples."""
-    return float((np.sign(y_true) > np.sign(y_pred)).mean() * 100.0)
+    return float(((y_true > y_pred)*1).mean() * 100.0)
 
 def print_table(df: pd.DataFrame, title: str):
     cols = [
@@ -83,7 +83,7 @@ def print_table(df: pd.DataFrame, title: str):
 # Main
 # =========================
 def main():
-    NAME  = "exp_013_cnn_100"
+    NAME  = "exp_018_lstm_100"
     for file in os.listdir(VOL_EXPERIMENTS_DIR/NAME):
         TRIAL = file
         BASE  = Path(VOL_EXPERIMENTS_DIR) / NAME / TRIAL

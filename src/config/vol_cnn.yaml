@@ -1,12 +1,12 @@
 experiment:
-  name: "cnn_100"
+  name: "cnn_100_search"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
   mode: "min"
   n_trials: 25 # for random search 
   random_state: 42 # for reproducibility
-  hyperparams_search: False
+  hyperparams_search: True
 
 # this whole thing might be useless
 data: 
@@ -25,7 +25,7 @@ walkforward:
   scale: True
   annualize: True
   scale_type: logstandard 
-  clip: 0.5
+  clip: 0.1
   #purge_days: 20
   #embargo_days: 20
 
@@ -39,8 +39,9 @@ trainer:
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    weight_decay: 5e-4
-    lr: 3e-3
+  search:
+    lr: {type: float, low: 1.0e-4, high: 1.0e-2, log: False}
+    weight_decay:  {type: float, low: 0, high: 1.0e-2, log: False}
 
 model:
   name: "simplecnn"
@@ -66,10 +67,10 @@ model:
     # ==========================
     conv_channels: [64, 128, 256]               # Channels per Conv1D block
     conv_activation: [relu, relu, relu]         # Activations for each Conv1D block
-    kernel_size: 3                              # Convolution kernel size
+    kernel_size: 8                              # Convolution kernel size
     padding: 1                                  # Convolution padding
-    pool: adaptive_max                          # "adaptive_avg" or "adaptive_max"
-    pool_k: 4                                   # Output size of pooling layer
+    pool: adaptive_avg                          # "adaptive_avg" or "adaptive_max"
+    pool_k: 16                                  # Output size of pooling layer
     use_bn: False                               # Apply BatchNorm in convolutional layers
 
     # ==========================

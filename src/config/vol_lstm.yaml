@@ -1,12 +1,12 @@
 experiment:
-  name: "lstm_40"
+  name: "lstm_100_search"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
   mode: "min"
   n_trials: 25 # for random search 
   random_state: 42 # for reproducibility
-  hyperparams_search: False
+  hyperparams_search: True
 
 # this whole thing might be useless
 data: 
@@ -17,15 +17,15 @@ walkforward:
   target_col: var
   lookback: 0
   max_folds: 
-  step: 251
+  step: 1257
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 40
+  lags: 100
   scale: True
   annualize: True
   scale_type: logstandard 
-  clip: 0.5
+  clip: 0.1
   #purge_days: 20
   #embargo_days: 20
 
@@ -33,14 +33,15 @@ trainer:
   hparams:
     epochs: 500
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    torch_patience: 25 # if empty early stopping is not active
+    torch_patience: 15 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
-    optuna_patience: 25  
+    optuna_patience: 20  
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    weight_decay: 0
-    lr: 3e-3
+  search:
+    lr: {type: float, low: 1.0e-4, high: 1.0e-2, log: False}
+    weight_decay:  {type: float, low: 0, high: 1.0e-2, log: False}
 
 model:
   name: "lstm"

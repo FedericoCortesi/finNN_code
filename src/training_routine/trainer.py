@@ -18,6 +18,7 @@ from config.config_types import AppConfig
 from .metrics import directional_accuracy_pct as _directional_accuracy_pct
 from .metrics import mse as _mse
 from .metrics import mae as _mae
+from .metrics import undershooting_pct as _undershooting_pct
 from .metrics import QLikeLoss
 from .training_utils import early_stopping_step
 
@@ -111,6 +112,7 @@ class Trainer:
         mae_sum  = 0.0
         mse_sum  = 0.0
         diracc_correct = 0
+        undershooting = 0
 
         # You can safely use bf16 autocast for *inference* to trim memory
         name = self.cfg.model.name.lower()
@@ -135,6 +137,8 @@ class Trainer:
             mae_sum  += torch.nn.functional.l1_loss(pb, yb, reduction="sum").item()
             mse_sum  += torch.nn.functional.mse_loss(pb, yb, reduction="sum").item()
             diracc_correct += (torch.sign(pb) == torch.sign(yb)).sum().item()
+            undershooting += _undershooting_pct(pb, yb)
+
             n += b
 
         return {
@@ -142,6 +146,7 @@ class Trainer:
             "mae":  mae_sum  / n,
             "mse":  mse_sum  / n,
             "directional_accuracy_pct": 100.0 * diracc_correct / n,
+            "undershooting_pct": 100.0 * undershooting / n,
         }
 
     def _y_to_tensor(self, y):

@@ -24,5 +24,4 @@ conda activate torch_h200_py312
 cd /orcd/home/002/corte911/code/finNN_code
 
 # === run your python script ===
-python -u src/run_experiments.py --config vol_mlp.yaml
-python -u src/run_experiments.py --config vol_cnn.yaml
+python -u src/run_experiments.py --config vol_lstm.yaml

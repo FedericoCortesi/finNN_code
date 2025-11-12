@@ -23,7 +23,7 @@ class WFCVGenerator:
         df_long: str = None,   # None => call preprocess()
         time_col: str = "t",
     ):
-        self.console_logger = setup_logger("WFCVGenerator", "INFO")
+        self.console_logger = setup_logger("WFCVGenerator", "DEBUG")
         self.config = config
         self.console_logger.debug(self.config.summary())
 
@@ -87,6 +87,7 @@ class WFCVGenerator:
         folds_count = 0  
 
         while True:
+            self.console_logger.debug(f"In walk forward true")
             a, b = t_0 , t_0 + self.config.T_train # train
             c = b + self.config.T_val # validation
             d = c + self.config.T_test # test

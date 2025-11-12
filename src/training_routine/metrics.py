@@ -14,11 +14,15 @@ def mse(pred: torch.Tensor, targ: torch.Tensor) -> float:
 
 @torch.no_grad()
 def directional_accuracy_pct(pred: torch.Tensor, targ: torch.Tensor) -> float:
-    """Directional accuracy in percentage (sign match rate)."""
+    """Directional accuracy in percentage (sign match rate)"""
     ps = torch.sign(pred)
     ts = torch.sign(targ)
     return ps.eq(ts).float().mean().item() * 100.0
 
+@torch.no_grad()
+def undershooting_pct(pred: torch.Tensor, targ: torch.Tensor) -> float:
+    """Percentage of True > Pred"""
+    return torch.mean(torch.sign(targ-pred)).item()
 
 
 class QLikeLoss(nn.Module):

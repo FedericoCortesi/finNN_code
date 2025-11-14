@@ -195,7 +195,15 @@ def main():
             if fold == 0:
                 console_logger.debug(f"model: {model}")
 
-            trainer.fit_eval_fold(model, data, trial=0, fold=fold, merge_train_val=False)
+            merge_tr_val = True
+            if merge_tr_val:
+                console_logger.warning(f"merge_tr_val is {merge_tr_val}")
+
+            trainer.fit_eval_fold(model, 
+                                  data, 
+                                  trial=0, 
+                                  fold=fold, 
+                                  merge_train_val=merge_tr_val)
 
     console_logger.warning("Training completed!")
 

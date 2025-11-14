@@ -11,6 +11,7 @@ from typing import Callable, Dict, Tuple, List, Optional
 
 from pipeline.preprocessing import preprocess
 from config.config_types import WFConfig
+from pipeline.pipeline_utils import scale_split
 
 from utils.custom_formatter import setup_logger
 from  utils.paths import SP500_PATH, DATA_DIR
@@ -351,188 +352,9 @@ class WFCVGenerator:
             cols_sorted = sorted(cols)  # fallback alphabetical
         return cols_sorted
 
-    def scale_split(
-        self,
-        Xtr, ytr, Xv, yv, Xte, yte,
-        scale_X=True, scale_y=True,
-        dtype=np.float64
-    ):
-        """
-        Fit scalers on train data and transform val/test.
-        Returns scaled arrays + fitted scalers.
-        """
-
-        # --- Sanity checks for feature arrays ---
-        for name, arr in [("Xtr", Xtr), ("Xv", Xv), ("Xte", Xte)]:
-            if arr is None:
-                raise ValueError(f"{name} is None — expected ndarray.")
-            if not np.isfinite(arr).all():
-                raise ValueError(f"{name} contains NaN or Inf values.")
-
-        X_scaler = None
-        y_scaler = None
-
-        self.console_logger.debug(f'self.scale_type: {self.scale_type}')
-        self.console_logger.debug(f'scale_X: {scale_X}')
-        self.console_logger.debug(f'scale_y: {scale_y}')
-        
-        # --- Scale X ---
-        if scale_X:
-            if self.scale_type == "standard":
-                X_scaler = StandardScaler(copy=False)
-                Xtr = X_scaler.fit_transform(Xtr)
-                Xv  = X_scaler.transform(Xv)
-                Xte = X_scaler.transform(Xte)
-            elif self.scale_type == "robust":
-                X_scaler = RobustScaler(quantile_range=(25, 75))
-                Xtr = X_scaler.fit_transform(Xtr)
-                Xv  = X_scaler.transform(Xv)
-                Xte = X_scaler.transform(Xte)
-            elif self.scale_type == "asinh":
-                X_scaler = None
-                Xtr = np.arcsinh(Xtr)
-                Xv  = np.arcsinh(Xv)
-                Xte = np.arcsinh(Xte)
-            elif self.scale_type == "log":
-                X_scaler = None
-                Xtr = np.log(Xtr)
-                Xv  = np.log(Xv)
-                Xte = np.log(Xte)
-            elif self.scale_type == "log1p":
-                X_scaler = None
-                Xtr = np.log1p(Xtr)
-                Xv  = np.log1p(Xv)
-                Xte = np.log1p(Xte)
-            elif self.scale_type == "asinhstandard":
-                self.console_logger.debug(f'Here: {self.scale_type}')
-                # Asinh transform
-                Xtr = np.arcsinh(Xtr)
-                Xv  = np.arcsinh(Xv)
-                Xte = np.arcsinh(Xte)
-                # Standard
-                X_scaler = StandardScaler(copy=False)
-                Xtr = X_scaler.fit_transform(Xtr)
-                Xv  = X_scaler.transform(Xv)
-                Xte = X_scaler.transform(Xte)
-            elif self.scale_type == "log1pstandard":
-                # log transform
-                Xtr = np.log1p(Xtr)
-                Xv  = np.log1p(Xv)
-                Xte = np.log1p(Xte)
-                # Standard
-                X_scaler = StandardScaler(copy=False)
-                Xtr = X_scaler.fit_transform(Xtr)
-                Xv  = X_scaler.transform(Xv)
-                Xte = X_scaler.transform(Xte)
-            elif self.scale_type == "logstandard":
-                # log transform
-                Xtr = np.log(Xtr)
-                Xv  = np.log(Xv)
-                Xte = np.log(Xte)
-                # Standard
-                X_scaler = StandardScaler(copy=False)
-                Xtr = X_scaler.fit_transform(Xtr)
-                Xv  = X_scaler.transform(Xv)
-                Xte = X_scaler.transform(Xte)
-            elif self.scale_type == "sqrtstandard":
-                # Asinh transform
-                Xtr = np.sqrt(1+Xtr)
-                Xv  = np.sqrt(1+Xv)
-                Xte = np.sqrt(1+Xte)
-                # Standard
-                X_scaler = StandardScaler(copy=False)
-                Xtr = X_scaler.fit_transform(Xtr)
-                Xv  = X_scaler.transform(Xv)
-                Xte = X_scaler.transform(Xte)
-            else:
-                raise ValueError(f"Unknown scale_type: {self.scale_type}")
-
-        # --- Convert dtype (important for GPU) ---
-        Xtr = Xtr.astype(dtype, copy=False)
-        Xv  = Xv.astype(dtype,  copy=False)
-        Xte = Xte.astype(dtype, copy=False)
-
-        # --- Scale y ---
-        if scale_y:
-            if self.scale_type == "standard":
-                y_scaler = StandardScaler(copy=False)
-                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1)) # makes it 2D, necessary for sklearn
-                yv  = y_scaler.transform(yv.reshape(-1, 1))
-                yte = y_scaler.transform(yte.reshape(-1, 1))
-            elif self.scale_type == "robust":
-                y_scaler = RobustScaler(quantile_range=(25, 75))
-                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1))
-                yv  = y_scaler.transform(yv.reshape(-1, 1))
-                yte = y_scaler.transform(yte.reshape(-1, 1))
-            elif self.scale_type == "asinh":
-                y_scaler = None
-                ytr = np.arcsinh(ytr)
-                yv  = np.arcsinh(yv)
-                yte = np.arcsinh(yte)
-            elif self.scale_type == "log1p":
-                y_scaler = None
-                ytr = np.log1p(ytr)
-                yv  = np.log1p(yv)
-                yte = np.log1p(yte)
-            elif self.scale_type == "log":
-                y_scaler = None
-                ytr = np.log(ytr)
-                yv  = np.log(yv)
-                yte = np.log(yte)
-            elif self.scale_type == "asinhstandard":
-                self.console_logger.debug(f'Here: {self.scale_type}')
-                ytr = np.arcsinh(ytr)
-                yv  = np.arcsinh(yv)
-                yte = np.arcsinh(yte)
-                y_scaler = StandardScaler(copy=False)
-                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1)) # makes it 2D, necessary for sklearn
-                yv  = y_scaler.transform(yv.reshape(-1, 1))
-                yte = y_scaler.transform(yte.reshape(-1, 1))
-            elif self.scale_type == "log1pstandard":
-                self.console_logger.debug(f'Here: {self.scale_type}')
-                # log transform
-                ytr = np.log1p(ytr)
-                yv  = np.log1p(yv)
-                yte = np.log1p(yte)
-                # Standard
-                y_scaler = StandardScaler(copy=False)
-                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1)) # makes it 2D, necessary for sklearn
-                yv  = y_scaler.transform(yv.reshape(-1, 1))
-                yte = y_scaler.transform(yte.reshape(-1, 1))
-            elif self.scale_type == "logstandard":
-                # log transform
-                ytr = np.log(ytr)
-                yv  = np.log(yv)
-                yte = np.log(yte)
-                # Standard
-                y_scaler = StandardScaler(copy=False)
-                ytr = y_scaler.fit_transform(ytr.reshape(-1, 1))
-                yv  = y_scaler.transform(yv.reshape(-1, 1))
-                yte = y_scaler.transform(yte.reshape(-1, 1))
-            elif self.scale_type == "sqrtstandard":
-                self.console_logger.debug(f'Here: {self.scale_type}')
-                # Asinh transform
-                ytr = np.sqrt(1+ytr)
-                yv  = np.sqrt(1+yv)
-                yte = np.sqrt(1+yte)
-                # Standard
-                y_scaler = StandardScaler(copy=False)
-                ytr = y_scaler.fit_transform(ytr)
-                yv  = y_scaler.transform(yv)
-                yte = y_scaler.transform(yte)
-            else:
-                raise ValueError(f"Unknown scale_type: {self.scale_type}")
-
-            # Flatten back to (N,)
-            ytr = ytr.astype(dtype, copy=False).ravel()
-            yv  = yv.astype(dtype,  copy=False).ravel()
-            yte = yte.astype(dtype, copy=False).ravel()
-
-        return Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler
-
-
     
-    def folds(self, df_master: pd.DataFrame | None = None):
+    def folds(self, 
+              df_master: pd.DataFrame | None = None):
         """
         Yield (Xtr, ytr, Xv, yv, Xte, yte) for each fold.
         If df_master is provided, it must have columns: feature_*, y, window.
@@ -582,13 +404,6 @@ class WFCVGenerator:
                 
                 lower_threshold = min(lower_threshold_x, lower_threshold_y)
                 upper_threshold = max(upper_threshold_x, upper_threshold_y)
-                #lower_threshold = -4
-                #upper_threshold = 4
-
-                # Find rows to keep in each set (all features within percentile range)
-                #train_mask = np.all((Xtr >= lower_threshold) & (Xtr <= upper_threshold), axis=1)
-                #val_mask = np.all((Xv >= lower_threshold) & (Xv <= upper_threshold), axis=1)
-                #test_mask = np.all((Xte >= lower_threshold) & (Xte <= upper_threshold), axis=1)
                 
                 
                 train_mask_x = np.all((Xtr >= lower_threshold) & (Xtr <= upper_threshold), axis=1)
@@ -623,13 +438,27 @@ class WFCVGenerator:
 
 
             if self.scale:
-                Xtr, ytr, Xv, yv, Xte, yte, X_scaler, y_scaler = self.scale_split(
-                    Xtr, ytr, Xv, yv, Xte, yte
+                result = scale_split(
+                    Xtr, ytr, Xv, yv, Xte, yte,
+                    scale_type=self.scale_type,
+                    merge=True
                 )
+                (
+                    Xtr, ytr, Xv, yv, Xte, yte,
+                    Xtr_val, ytr_val, Xte_merged, yte_merged
+                ) = result
+            else:
+                # Create unscaled merged arrays
+                Xtr_val = np.concatenate([Xtr, Xv], axis=0)
+                ytr_val = np.concatenate([ytr, yv], axis=0)
+                Xte_merged = Xte.copy()
+                yte_merged = yte.copy()
 
             self.console_logger.debug(f'Generating fold: {fold}')
+            self.console_logger.debug(f'Merged arrays shapes: Xtr_val={Xtr_val.shape}, ytr_val={ytr_val.shape}')
+            self.console_logger.debug(f'Merged test shapes: Xte_merged={Xte_merged.shape}, yte_merged={yte_merged.shape}')
 
-            yield Xtr, ytr, Xv, yv, Xte, yte
+            yield Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged
 
 
 

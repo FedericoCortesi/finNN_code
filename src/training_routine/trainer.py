@@ -32,7 +32,7 @@ class Trainer:
         self.logger = logger
         
         # console logging, mainly fro debugging
-        self.console_logger = setup_logger("Trainer", level="INFO")
+        self.console_logger = setup_logger("Trainer", level="DEBUG")
         
         self.device = torch.device("cuda")
         # Fail if cuda (=GPU) not available
@@ -172,10 +172,8 @@ class Trainer:
         merge_train_val: bool = False,  # Should we allow this? If no search we're losing info but unfair comparison with other model
         report_cb: Optional[Callable] = None  
     ):
-        self.console_logger.debug(f"report_cb: {report_cb}")
-
         # Unpack numpy arrays
-        Xtr, ytr, Xv, yv, Xte, yte = data
+        Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged = data
 
         # Paths
         fold_dir = self.logger.path(f"fold_{fold:03d}/")
@@ -192,16 +190,15 @@ class Trainer:
 
         # Prepare tensors
         if merge_train_val:
-            Xtrv = np.concatenate([Xtr, Xv], axis=0)
-            ytrv = np.concatenate([ytr, yv], axis=0)
-
             # Same name so the notation is less cumbersome
-            Xtr_tensor = torch.as_tensor(Xtrv, dtype=torch.float32, device=self.device) 
-            ytr_tensor = self._y_to_tensor(ytrv)
+            Xtr_tensor = torch.as_tensor(Xtr_val, dtype=torch.float32, device=self.device) 
+            ytr_tensor = self._y_to_tensor(ytr_val)
+            
             # No validation tensors in merged mode
             Xv_tensor = yv_tensor = None
-            Xte_tensor  = torch.as_tensor(Xte,  dtype=torch.float32, device=self.device)
-            yte_tensor  = self._y_to_tensor(yte)
+            Xte_tensor  = torch.as_tensor(Xte_merged,  dtype=torch.float32, device=self.device)
+            yte_tensor  = self._y_to_tensor(yte_merged)
+        
         else:
             Xtr_tensor = torch.as_tensor(Xtr, dtype=torch.float32, device=self.device)
             ytr_tensor = self._y_to_tensor(ytr)
@@ -263,11 +260,18 @@ class Trainer:
 
         # Info on datasets
         percentiles = [0, 5, 25, 50, 75, 95, 100]
-        self.console_logger.debug(f"np.var(ytr),np.var(yv),np.var(yte): {np.var(ytr):.8f},{np.var(yv):.8f},{np.var(yte):.8f}")
-        self.console_logger.debug(f"Y train, val, test {percentiles}:\n{np.percentile(ytr, percentiles)}\n{np.percentile(yv, percentiles)}\n{np.percentile(yte, percentiles)}")
-        self.console_logger.debug(f"np.var(Xtr),np.var(Xv),np.var(Xte): {np.var(Xtr):.8f},{np.var(Xv):.8f},{np.var(Xte):.8f}")
-        self.console_logger.debug(f"X train, val, test {percentiles}:\n{np.percentile(Xtr, percentiles)}\n{np.percentile(Xv, percentiles)}\n{np.percentile(Xte, percentiles)}")
-        
+        if not merge_train_val:
+            self.console_logger.debug(f"np.var(ytr),np.var(yv),np.var(yte): {np.var(ytr):.8f},{np.var(yv):.8f},{np.var(yte):.8f}")
+            self.console_logger.debug(f"Y train, val, test {percentiles}:\n{np.percentile(ytr, percentiles)}\n{np.percentile(yv, percentiles)}\n{np.percentile(yte, percentiles)}")
+            self.console_logger.debug(f"np.var(Xtr),np.var(Xv),np.var(Xte): {np.var(Xtr):.8f},{np.var(Xv):.8f},{np.var(Xte):.8f}")
+            self.console_logger.debug(f"X train, val, test {percentiles}:\n{np.percentile(Xtr, percentiles)}\n{np.percentile(Xv, percentiles)}\n{np.percentile(Xte, percentiles)}")
+        else:
+            self.console_logger.debug(f"np.var(ytr),np.var(yte): {np.var(ytr):.8f},{np.var(yte):.8f}")
+            self.console_logger.debug(f"Y train, test {percentiles}:\n{np.percentile(ytr, percentiles)}\n{np.percentile(yte, percentiles)}")
+            self.console_logger.debug(f"np.var(Xtr),np.var(Xte): {np.var(Xtr):.8f},{np.var(Xte):.8f}")
+            self.console_logger.debug(f"X train, test {percentiles}:\n{np.percentile(Xtr, percentiles)}\n{np.percentile(Xte, percentiles)}")
+
+
         # debug optimizer and model
         model_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         opt_params   = sum(p.numel() for g in self.optimizer.param_groups for p in g["params"] if p.requires_grad)
@@ -341,8 +345,6 @@ class Trainer:
 
                     # optional pruning callback only in search mode
                     if callable(report_cb):
-                        self.console_logger.debug(f"in report_cb")
-
                         # report the monitored validation metric
                         if monitor_key == "val_loss":
                             should_prune = report_cb(epoch, vloss)

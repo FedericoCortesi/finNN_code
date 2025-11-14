@@ -1,5 +1,5 @@
 experiment:
-  name: "mlp_40_search"
+  name: "mlp_100_search_debug"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
@@ -17,11 +17,11 @@ walkforward:
   target_col: var
   lookback: 0
   max_folds: 
-  step: 251
+  step: 200
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 40
+  lags: 20
   scale: True
   annualize: True
   scale_type: logstandard 
@@ -33,9 +33,9 @@ trainer:
   hparams:
     epochs: 500
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    torch_patience: 10 # if empty early stopping is not active
+    torch_patience: 15 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
-    optuna_patience: 10 
+    optuna_patience: 5  
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
@@ -49,8 +49,8 @@ model:
     # ==========================
     #  MLP HEAD PARAMETERS
     # ==========================
-    mlp_hidden_sizes: [512, 256, 256, 128]                # Fully connected layers after LSTM readout
-    mlp_activation: [relu, relu, relu, relu]                # Activations for each MLP layer
+    mlp_hidden_sizes: [128, 128]                # Fully connected layers after LSTM readout
+    mlp_activation: [relu, relu]                # Activations for each MLP layer
     dropout_rate: 0                             # Dropout applied in MLP layers
 
     # ==========================

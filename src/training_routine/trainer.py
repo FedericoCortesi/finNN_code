@@ -32,7 +32,7 @@ class Trainer:
         self.logger = logger
         
         # console logging, mainly fro debugging
-        self.console_logger = setup_logger("Trainer", level="DEBUG")
+        self.console_logger = setup_logger("Trainer", level="INFO")
         
         self.device = torch.device("cuda")
         # Fail if cuda (=GPU) not available
@@ -172,6 +172,8 @@ class Trainer:
         merge_train_val: bool = False,  # Should we allow this? If no search we're losing info but unfair comparison with other model
         report_cb: Optional[Callable] = None  
     ):
+        self.console_logger.debug(f"report_cb: {report_cb}")
+
         # Unpack numpy arrays
         Xtr, ytr, Xv, yv, Xte, yte = data
 
@@ -260,7 +262,7 @@ class Trainer:
         self.console_logger.info(msg)
 
         # Info on datasets
-        percentiles = [0, 0.5, 1, 5, 25, 50, 75, 95, 99, 99.5, 100]
+        percentiles = [0, 5, 25, 50, 75, 95, 100]
         self.console_logger.debug(f"np.var(ytr),np.var(yv),np.var(yte): {np.var(ytr):.8f},{np.var(yv):.8f},{np.var(yte):.8f}")
         self.console_logger.debug(f"Y train, val, test {percentiles}:\n{np.percentile(ytr, percentiles)}\n{np.percentile(yv, percentiles)}\n{np.percentile(yte, percentiles)}")
         self.console_logger.debug(f"np.var(Xtr),np.var(Xv),np.var(Xte): {np.var(Xtr):.8f},{np.var(Xv):.8f},{np.var(Xte):.8f}")
@@ -339,6 +341,8 @@ class Trainer:
 
                     # optional pruning callback only in search mode
                     if callable(report_cb):
+                        self.console_logger.debug(f"in report_cb")
+
                         # report the monitored validation metric
                         if monitor_key == "val_loss":
                             should_prune = report_cb(epoch, vloss)

@@ -1,0 +1,78 @@
+model:
+  name: lstm
+  hparams:
+    mlp_hidden_sizes:
+      - 512
+      - 256
+    mlp_activation:
+      - relu
+      - relu
+    dropout_rate: 0
+    lstm_hidden_sizes:
+      - 256
+      - 256
+    lstm_dropout: 0
+    bidirectional: false
+    readout: last
+    use_ln: false
+    conv_channels:
+      - 64
+      - 128
+      - 256
+    conv_activation:
+      - relu
+      - relu
+      - relu
+    kernel_size: 3
+    padding: 1
+    pool: adaptive_max
+    pool_k: 4
+    use_bn: false
+    output_activation: linear
+  search: {}
+
+trainer:
+  hparams:
+    epochs: 100
+    batch_size: 512
+    torch_patience: 25
+    min_delta: "1e-10"
+    optuna_patience: 25
+    loss: mse
+    metrics:
+      - mae
+      - mse
+      - dir_acc
+      - qlike
+    val_every: 1
+    weight_decay: "1e-4"
+    lr: "3e-3"
+  search: {}
+
+walkforward:
+  target_col: var
+  lookback: 0
+  ratio_train: 3
+  ratio_val: 1
+  ratio_test: 1
+  step: 1257
+  lags: 100
+  max_folds: null
+  min_folds: null
+  scale: true
+  annualize: true
+  scale_type: logstandard
+  clip: 0.1
+
+experiment:
+  name: exp_019_lstm_100_search
+  hyperparams_search: false
+  monitor: val_loss
+  mode: min
+  type: volatility
+  n_trials: 25
+  random_state: 42
+
+data:
+  df_path: null
+  df_master: null

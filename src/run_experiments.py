@@ -3,7 +3,7 @@ from functools import partial
 import pandas as pd
 import numpy as np
 import optuna
-from optuna.pruners import SuccessiveHalvingPruner
+from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
 
 from config.config_types import AppConfig
@@ -13,7 +13,7 @@ from pipeline.walkforward import WFCVGenerator
 #from pipeline.wf_config import WFConfig
 from hyperparams_search.search_utils import optuna_objective, sample_hparams_into_cfg
 #from hyperparams_search.torch_estimator import TorchFoldEstimator
-#from hyperparams_search.randomsearch import RandomSearch
+#from hyperparams_search.randomsearch import RandomSearch 
 
 from utils.gpu_test import gpu_test
 from utils.paths import CONFIG_DIR, DATA_DIR
@@ -142,7 +142,7 @@ def main():
             study = optuna.create_study(
                 direction=direction,
                 sampler=TPESampler(seed=cfg.experiment.random_state, multivariate=True),
-                pruner=SuccessiveHalvingPruner(min_resource=3, reduction_factor=3),  # ASHA-like pruning
+                pruner=MedianPruner(n_startup_trials=3, n_warmup_steps=10, interval_steps=1),  # Median-based pruning
             )
 
             # Define a "bound" objective function with extra args pre-filled
@@ -160,7 +160,6 @@ def main():
                            n_jobs=n_jobs)
 
             # ---- log & (optionally) retrain best-once for the fold ----
-            best_number = study.best_trial.number
             console_logger.info(f"[Fold {fold}] Best trial number:  {study.best_trial.number:3d}")
             console_logger.info(f"[Fold {fold}] Best params: {study.best_params}")
 
@@ -186,12 +185,6 @@ def main():
                                             merge_train_val=True,
                                             report_cb=None)
 
-            # --- log best results ---
-            #console_logger.info(f"[Fold {fold}] Best params: {result['best_params']}")
-            #console_logger.info(f"[Fold {fold}] Best {cfg.experiment.monitor}: {result['best_selection_score']:.6f}")
-            
-            #time.sleep(10)
-
 
         else:
             input_shape = make_input_shape(cfg)
@@ -202,7 +195,7 @@ def main():
             if fold == 0:
                 console_logger.debug(f"model: {model}")
 
-            trainer.fit_eval_fold(model, data, trial=0, fold=fold)
+            trainer.fit_eval_fold(model, data, trial=0, fold=fold, merge_train_val=False)
 
     console_logger.warning("Training completed!")
 

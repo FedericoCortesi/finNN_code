@@ -1,10 +1,10 @@
 experiment:
-  name: "lstm_100_search"
+  name: "lstm_40_search_debug"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
   mode: "min"
-  n_trials: 25 # for random search 
+  n_trials: 15 # for random search 
   random_state: 42 # for reproducibility
   hyperparams_search: True
 
@@ -14,14 +14,15 @@ data:
   df_master: # if left out the pipeline takes it automatically
 
 walkforward:
+  min_folds: 10
   target_col: var
   lookback: 0
   max_folds: 
-  step: 1257
+  step: 251
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 100
+  lags: 40
   scale: True
   annualize: True
   scale_type: logstandard 
@@ -31,11 +32,11 @@ walkforward:
 
 trainer:
   hparams:
-    epochs: 500
+    epochs: 250
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    torch_patience: 15 # if empty early stopping is not active
+    torch_patience: 10 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
-    optuna_patience: 20  
+    optuna_patience: 10 
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1

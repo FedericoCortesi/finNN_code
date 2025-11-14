@@ -70,13 +70,9 @@ def sample_hparams_into_cfg(base_cfg, trial):
     parsed_config["model"] =  copy.deepcopy(cfg["model"])
     parsed_config["model"]["name"] = copy.deepcopy(cfg["model"]["name"])
     model_keys = [k for k in cfg["model"]["search"].keys()] + [k for k in cfg["model"]["hparams"].keys()]
-    console_logger.debug(f"model_keys: {model_keys}")
-    console_logger.debug(f'cfg["model"]: {cfg["model"]}')
     for k in model_keys:
         parsed_config["model"]["hparams"][k] = None
 
-    console_logger.debug(f'cfg["model"] after the cycle: {cfg["model"]}')
-    console_logger.debug(f'parsed_config["model"]: {parsed_config["model"]}')
 
 
     # trainer.search → trainer.params (mirror to top-level if you also read there)
@@ -91,7 +87,6 @@ def sample_hparams_into_cfg(base_cfg, trial):
 
     # model.search → model.params
     mdl_search = cfg.get("model", {}).get("search", {}) or {}
-    console_logger.debug(f"mdl_search: {mdl_search}")
     #mdl_hparams = cfg.get("model", {}).get("hparams", {}) or {}
     
     #sampled = {k: _suggest_from_spec(trial, f"model.{k}", spec) for k, spec in mdl_search.items()}
@@ -139,38 +134,31 @@ def sample_hparams_into_cfg(base_cfg, trial):
     # Harder than Trainer class since we have 2 effective levels.
     for k,v in parsed_config["model"]["hparams"].items():
         if v is None:
-            console_logger.debug(f"k,v: {k, v}")
-            console_logger.debug(f'cfg["model"]["hparams"][k]: {cfg["model"]["hparams"][k]}')
             parsed_config["model"]["hparams"][k] = cfg["model"]["hparams"][k]
     console_logger.debug(parsed_config)
     return parsed_config
 
+
+
 def _make_report_cb(trial, mode: str = "min", patience: int = 5):
-    """
-    Returns a function: (epoch:int, val_metric:float) -> bool
-    that reports to Optuna every call, and only allows pruning
-    after 'patience' consecutive non-improvements.
-    """
-    best = float("inf") if mode == "min" else -float("inf")
-    bad = 0
-
-    def better(a, b):
-        return a < b if mode == "min" else a > b
-
+    """Simplified callback - MedianPruner handles most of the logic"""
+    
     def cb(epoch: int, val_metric: float) -> bool:
-        nonlocal best, bad
-        trial.report(val_metric, step=epoch)  # monotonically increasing step
-
-        if better(val_metric, best):
-            best = val_metric
-            bad = 0
-        else:
-            bad += 1
-
-        # Only prune if patience exceeded AND pruner agrees
-        return bad > patience and trial.should_prune()
-
+        trial.report(val_metric, step=epoch)
+        
+        # Simple debug info
+        console_logger.debug(f'Trial {trial.number}, Epoch {epoch}: val_metric={val_metric:.6f}')
+        
+        # Let MedianPruner decide
+        should_prune = trial.should_prune()
+        
+        if should_prune:
+            return True
+        
+        return False
+    
     return cb
+
 
 # TODO: log results in trial_{n_fold}_{n_fold} so that you can 
 # save just one conifg json and per fold and not bloat the other dirs.
@@ -186,8 +174,8 @@ def optuna_objective(trial: optuna.trial.Trial,
 
     trial_cfg = AppConfig.from_dict(trial_cfg)
 
-    console_logger.critical(f"Model params: {trial_cfg.model.hparams}")
-    console_logger.critical(f"Trainer params: {trial_cfg.trainer.hparams}")
+    console_logger.debug(f"Model params: {trial_cfg.model.hparams}")
+    console_logger.debug(f"Trainer params: {trial_cfg.trainer.hparams}")
 
 
     # 2) fresh trainer per trial (avoid any state carry-over)

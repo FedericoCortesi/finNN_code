@@ -1,2 +1,0 @@
-trial,fold,tr_loss,val_loss,test_loss,tr_mae,val_mae,test_mae,tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,seconds,model_path
-0,0,0.43045998739433294,0.42308600900705384,0.3796290377173233,0.5109716102750388,0.5050356331388591,0.48220159449100447,78.27462357480634,77.8940517429924,73.28747598686249,2915.5416259765625,/orcd/home/002/corte911/code/finNN_code/src/volatility/experiments/exp_017_debug/trial_20251108_010740/fold_000/model_best.pt

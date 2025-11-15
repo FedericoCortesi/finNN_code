@@ -17,11 +17,11 @@ walkforward:
   target_col: var
   lookback: 0
   max_folds: 
-  step: 251
+  step: 300
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 40
+  lags: 100
   scale: True
   annualize: True
   scale_type: logstandard 

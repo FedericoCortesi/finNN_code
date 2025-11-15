@@ -21,7 +21,7 @@ class WFCVGenerator:
         self,
         config: WFConfig,
         id_col: str = "permno",
-        df_long: str = None,   # None => call preprocess()
+        df_long = None,   # None => call preprocess(), can be str for path or df
         time_col: str = "t",
     ):
         self.console_logger = setup_logger("WFCVGenerator", "INFO")
@@ -52,11 +52,13 @@ class WFCVGenerator:
         self.stamps_and_windows_array = self._make_windows()
         self.df_master = self._build_master_df()
 
-    def _load_df(self, df_long: str) -> pd.DataFrame:
+    def _load_df(self, df_long) -> pd.DataFrame:
         if df_long is None:
             df = preprocess(annualize_var=self.config.annualize)[[self.time_col, self.target_col, self.id_col]].copy()
-        else:
+        elif isinstance(df_long, str):
             df = preprocess(path=f'{DATA_DIR}/df_long', annualize_var=self.config.annualize)[[self.time_col, self.target_col, self.id_col]].copy()
+        elif isinstance(df_long, pd.DataFrame):
+            df = df_long
             
         # validate required columns
         required = {self.time_col, self.target_col, self.id_col}

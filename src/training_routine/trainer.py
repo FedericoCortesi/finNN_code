@@ -65,22 +65,90 @@ class Trainer:
         # Separate parameters into two groups:
         #  - decay: weights of Linear/Conv layers (apply L2 regularization)
         #  - no_decay: biases and normalization params (skip weight decay)
-        decay, no_decay = [], []
+        decay_2d, no_decay_2d = [], []
+        decay_other, no_decay_other = [], []
         for n, p in self.model.named_parameters():
-            if p.requires_grad:
-                # 1D params
-                if p.dim() == 1 or n.endswith("bias"):
-                    no_decay.append(p)
+            if not p.requires_grad:
+                continue
+
+            is_bias_like = (p.dim() == 1) or n.endswith("bias")
+
+            if not is_bias_like:
+                # -> candidate for weight decay
+                if p.dim() == 2:
+                    decay_2d.append(p)
                 else:
-                    decay.append(p)
+                    decay_other.append(p)
+            else:
+                # -> no weight decay (biases, 1D norm params, etc.)
+                if p.dim() == 2:
+                    no_decay_2d.append(p)
+                else:
+                    no_decay_other.append(p)
+
+        decay    = decay_2d + decay_other
+        no_decay = no_decay_2d + no_decay_other
+
 
         # Apply weight decay only to 'decay' group for cleaner regularization
-        self.optimizer = optim.Adam(
-            [{"params": decay, "weight_decay": weight_decay},
-            {"params": no_decay, "weight_decay": 0.0}],
-            lr=lr,
-            fused=True
-        )
+        self.optimizer_type = self.cfg.trainer.hparams["optimizer_type"].lower()
+        if self.optimizer_type == "adam":
+            self.optimizer = optim.Adam(
+                [{"params": decay, "weight_decay": weight_decay},
+                {"params": no_decay, "weight_decay": 0.0}],
+                lr=lr,
+                fused=True
+            )
+        elif self.optimizer_type == "muon":
+            # Muon ONLY on 2D params (hidden layer matrices)
+            if len(decay_2d) == 0 and len(no_decay_2d) == 0:
+                self.console_logger.warning(
+                    "Muon selected but no 2D parameters found; "
+                    "falling back to Adam for all parameters."
+                )
+                self.optimizer = optim.Adam(
+                    [
+                        {"params": decay, "weight_decay": weight_decay},
+                        {"params": no_decay, "weight_decay": 0.0},
+                    ],
+                    lr=lr,
+                    fused=True,
+                )
+
+            self.optimizer_muon = optim.Muon(
+                [
+                    {"params": decay_2d, "weight_decay": weight_decay},
+                    {"params": no_decay_2d, "weight_decay": 0.0},
+                ],
+                lr=lr,
+            )
+
+            # Adam for all the *non-2D* params (biases, norms, conv kernels, etc.)
+            other_param_groups = []
+            if decay_other:
+                other_param_groups.append(
+                    {"params": decay_other, "weight_decay": weight_decay}
+                )
+            if no_decay_other:
+                other_param_groups.append(
+                    {"params": no_decay_other, "weight_decay": 0.0}
+                )
+
+            if other_param_groups:
+                self.optimizer_other = optim.Adam(
+                    other_param_groups,
+                    lr=lr,
+                )
+            else:
+                self.optimizer_other = None  # Edge case: everything was 2D
+
+            self.console_logger.debug(
+                f"Using Muon for {len(decay_2d) + len(no_decay_2d)} 2D params "
+                f"and AdamW for {len(decay_other) + len(no_decay_other)} other params."
+            )
+
+        else:
+            raise ValueError(f"Unsupported self.optimizer_type '{self.optimizer_type}'")
         try:
             name = self.cfg.model.name.lower()
             if name in ("lstm", "gru", "rnn"):        
@@ -274,7 +342,22 @@ class Trainer:
 
         # debug optimizer and model
         model_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        opt_params   = sum(p.numel() for g in self.optimizer.param_groups for p in g["params"] if p.requires_grad)
+
+        if self.optimizer_type == "muon":
+            param_groups = []
+            if hasattr(self, "optimizer_muon"):
+                param_groups.extend(self.optimizer_muon.param_groups)
+            if getattr(self, "optimizer_other", None) is not None:
+                param_groups.extend(self.optimizer_other.param_groups)
+        else:
+            param_groups = self.optimizer.param_groups
+
+        opt_params = sum(
+            p.numel()
+            for g in param_groups
+            for p in g["params"]
+            if p.requires_grad
+        )
         self.console_logger.debug(f"param_count model={model_params} optimizer={opt_params}")
 
         effective_epochs = 0
@@ -287,17 +370,35 @@ class Trainer:
 
             # manual batching
             for xb, yb in zip(xb_chunks, yb_chunks):
+                # --- zero grad ---
                 # set gradient to zero otherwise they accumulate
-                self.optimizer.zero_grad(set_to_none=True)
+                if self.optimizer_type == "muon":
+                    self.optimizer_muon.zero_grad(set_to_none=True)
+                    if getattr(self, "optimizer_other", None) is not None:
+                        self.optimizer_other.zero_grad(set_to_none=True)
+                else:
+                    self.optimizer.zero_grad(set_to_none=True)
+
+                # --- forward + loss ---
                 with amp_ctx:
                     pred = self.model(xb).squeeze(-1)
                     loss = self.loss_fn(pred, yb)
+
+                # --- backward ---
                 loss.backward()
-                self.optimizer.step()
+
+                # --- optimizer step ---
+                if self.optimizer_type == "muon":
+                    self.optimizer_muon.step()
+                    if getattr(self, "optimizer_other", None) is not None:
+                        self.optimizer_other.step()
+                else:
+                    self.optimizer.step()
+
                 bs = xb.shape[0]
                 epoch_loss += loss.detach() * bs
                 seen += bs
-
+                
             # compute loss
             tr_loss_avg = (epoch_loss / max(seen, 1)).item()
 
@@ -322,6 +423,11 @@ class Trainer:
                         # early stopping logic (on validation checkpoints only)
                         # be very mindful with this, setting a high patience makes the
                         # GPU mmeory implode
+                        if self.optimizer_type == "muon":
+                            # We pass the Muon optimizer (the main one on 2D weights)
+                            optimizer_for_es = self.optimizer_muon
+                        else:
+                            optimizer_for_es = self.optimizer
                         es_result = early_stopping_step(epoch=epoch,
                                                         val_loss=vloss,
                                                         best_val=best_val,
@@ -330,7 +436,7 @@ class Trainer:
                                                         min_delta=min_delta,
                                                         mode=mode,
                                                         model=self.model,
-                                                        optimizer=self.optimizer)
+                                                        optimizer=optimizer_for_es)
                         
                         best_val, stalled, best_state, should_stop = es_result
                         
@@ -388,14 +494,30 @@ class Trainer:
             best_epoch = int(np.argmin(np.array(val_history))) + 1 if mode == "min" else int(np.argmax(np.array(val_history))) + 1
             best_val = history[best_epoch - 1].get("val_loss")
 
+
+        if self.optimizer_type == "muon":
+            # Save BOTH optimizers
+            optimizer_state = {
+                "muon": self.optimizer_muon.state_dict(),
+                "other": (
+                    self.optimizer_other.state_dict()
+                    if getattr(self, "optimizer_other", None) is not None
+                    else None
+                ),
+            }
+        else:
+            # Adam / AdamW uses the old path
+            optimizer_state = self.optimizer.state_dict()
+
+        # Now save everything
         torch.save(
             {
                 "epoch": best_epoch,
                 "model_state": self.model.state_dict(),
-                "optimizer_state": self.optimizer.state_dict(),
+                "optimizer_state": optimizer_state,   
                 "monitor": best_val,
-                "history":history,
-                "grad_history":grad_history
+                "history": history,
+                "grad_history": grad_history,
             },
             os.path.join(fold_dir, "model_best.pt"),
         )

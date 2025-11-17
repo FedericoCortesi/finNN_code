@@ -189,384 +189,383 @@ def _dedupe_on_fold(df: pd.DataFrame, name: str) -> pd.DataFrame:
 # Main
 # =========================
 def main():
-    names  = ["exp_019_lstm_100_search", "exp_020_cnn_100_search", "exp_021_mlp_100_search"]
-    for NAME in names:
-        TRIAL = "trial_search_best"
-        BASE  = Path(VOL_EXPERIMENTS_DIR) / NAME / TRIAL
-        print(f'\n\nAnalyzing {BASE}\n\n')
+    NAME = "exp_017_debug"
+    TRIAL = "trial_20251116_122604"
+    BASE  = Path(VOL_EXPERIMENTS_DIR) / NAME / TRIAL
+    print(f'\n\nAnalyzing {BASE}\n\n')
 
-        cfg = load_cfg(BASE)
+    cfg = load_cfg(BASE)
 
-        # 1) Stream folds once: compute variances + OLS metrics + NN calibration on the fly
-        wf = WFCVGenerator(config=cfg.walkforward)
-        var_rows, ols_rows, nn_calib_rows = [], [], []
+    # 1) Stream folds once: compute variances + OLS metrics + NN calibration on the fly
+    wf = WFCVGenerator(config=cfg.walkforward)
+    var_rows, ols_rows, nn_calib_rows = [], [], []
 
-        for fold_idx, (Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged) in tqdm(
-            enumerate(wf.folds()), desc="Streaming folds"
-        ):
-            if MERGE_TRAIN_VAL:
-                # Use pre-scaled merged arrays from new schema
-                X_tr, y_tr = Xtr_val, ytr_val
-                X_val, y_val = None, None  # Not used in merged mode
-                X_te, y_te = Xte_merged, yte_merged
-            else:
-                # Use original separate arrays
-                X_tr, y_tr = Xtr, ytr
-                X_val, y_val = Xv, yv
-                X_te, y_te = Xte, yte
+    for fold_idx, (Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged) in tqdm(
+        enumerate(wf.folds()), desc="Streaming folds"
+    ):
+        if MERGE_TRAIN_VAL:
+            # Use pre-scaled merged arrays from new schema
+            X_tr, y_tr = Xtr_val, ytr_val
+            X_val, y_val = None, None  # Not used in merged mode
+            X_te, y_te = Xte_merged, yte_merged
+        else:
+            # Use original separate arrays
+            X_tr, y_tr = Xtr, ytr
+            X_val, y_val = Xv, yv
+            X_te, y_te = Xte, yte
 
-            # --- per-split variances (scalar) ---
-            var_rows.append({
-                "fold": fold_idx,
-                "var_train": float(np.var(y_tr)),
-                "var_val":   float(np.var(y_val)) if not MERGE_TRAIN_VAL else np.nan,
-                "var_test":  float(np.var(y_te)),
-            })
+        # --- per-split variances (scalar) ---
+        var_rows.append({
+            "fold": fold_idx,
+            "var_train": float(np.var(y_tr)),
+            "var_val":   float(np.var(y_val)) if not MERGE_TRAIN_VAL else np.nan,
+            "var_test":  float(np.var(y_te)),
+        })
 
-            # --- OLS per fold (keep your statsmodels helpers) ---
+        # --- OLS per fold (keep your statsmodels helpers) ---
 
-            models = fit_ols_per_target(X_tr, y_tr)
+        models = fit_ols_per_target(X_tr, y_tr)
 
-            yhat_tr_ols  = pred_ols(models, X_tr)
-            if MERGE_TRAIN_VAL:
-                yhat_val_ols = None
-            else:
-                yhat_val_ols = pred_ols(models, X_val)
-            yhat_te_ols  = pred_ols(models, X_te)
+        yhat_tr_ols  = pred_ols(models, X_tr)
+        if MERGE_TRAIN_VAL:
+            yhat_val_ols = None
+        else:
+            yhat_val_ols = pred_ols(models, X_val)
+        yhat_te_ols  = pred_ols(models, X_te)
 
-            # ---- shape safety: if target is 1-D, make preds 1-D too ----
-            if y_tr.ndim == 1:
-                yhat_tr_ols = yhat_tr_ols.ravel()
-            if y_val is not None and not MERGE_TRAIN_VAL:
-               if y_val.ndim == 1:
-                    yhat_val_ols = yhat_val_ols.ravel()
-            if y_te.ndim == 1:
-                yhat_te_ols = yhat_te_ols.ravel()
+        # ---- shape safety: if target is 1-D, make preds 1-D too ----
+        if y_tr.ndim == 1:
+            yhat_tr_ols = yhat_tr_ols.ravel()
+        if y_val is not None and not MERGE_TRAIN_VAL:
+           if y_val.ndim == 1:
+                yhat_val_ols = yhat_val_ols.ravel()
+        if y_te.ndim == 1:
+            yhat_te_ols = yhat_te_ols.ravel()
 
-            # ---- MSE computation that works for 1-D or multi-D ----
-            def mse(a, b):
-                diff2 = (a - b) ** 2
-                if diff2.ndim == 2:   # average over dims & samples
-                    return float(diff2.mean(axis=0).mean())
-                return float(diff2.mean())
+        # ---- MSE computation that works for 1-D or multi-D ----
+        def mse(a, b):
+            diff2 = (a - b) ** 2
+            if diff2.ndim == 2:   # average over dims & samples
+                return float(diff2.mean(axis=0).mean())
+            return float(diff2.mean())
 
-            mse_tr  = mse(y_tr,  yhat_tr_ols)
-            mse_val = np.nan if MERGE_TRAIN_VAL else mse(y_val, yhat_val_ols)
-            mse_te  = mse(y_te,  yhat_te_ols)
+        mse_tr  = mse(y_tr,  yhat_tr_ols)
+        mse_val = np.nan if MERGE_TRAIN_VAL else mse(y_val, yhat_val_ols)
+        mse_te  = mse(y_te,  yhat_te_ols)
 
-            da_tr  = dir_acc(y_tr,  yhat_tr_ols)
-            da_val = np.nan if MERGE_TRAIN_VAL else dir_acc(y_val, yhat_val_ols)
-            da_te  = dir_acc(y_te,  yhat_te_ols)
+        da_tr  = dir_acc(y_tr,  yhat_tr_ols)
+        da_val = np.nan if MERGE_TRAIN_VAL else dir_acc(y_val, yhat_val_ols)
+        da_te  = dir_acc(y_te,  yhat_te_ols)
 
-            us_tr  = undershooting(y_tr,  yhat_tr_ols)
-            us_val = np.nan if MERGE_TRAIN_VAL else undershooting(y_val, yhat_val_ols)
-            us_te  = undershooting(y_te,  yhat_te_ols)
+        us_tr  = undershooting(y_tr,  yhat_tr_ols)
+        us_val = np.nan if MERGE_TRAIN_VAL else undershooting(y_val, yhat_val_ols)
+        us_te  = undershooting(y_te,  yhat_te_ols)
 
-            # ---- OLS calibration on TEST: y_true ~ alpha + beta * y_pred_ols ----
-            y_tr_flat     = y_tr.reshape(-1) if y_tr.ndim > 1 else y_tr
-            yhat_tr_ols_f = yhat_tr_ols.reshape(-1) if yhat_tr_ols.ndim > 1 else yhat_tr_ols
+        # ---- OLS calibration on TEST: y_true ~ alpha + beta * y_pred_ols ----
+        y_tr_flat     = y_tr.reshape(-1) if y_tr.ndim > 1 else y_tr
+        yhat_tr_ols_f = yhat_tr_ols.reshape(-1) if yhat_tr_ols.ndim > 1 else yhat_tr_ols
 
-            y_te_flat     = y_te.reshape(-1) if y_te.ndim > 1 else y_te
-            yhat_te_ols_f = yhat_te_ols.reshape(-1) if yhat_te_ols.ndim > 1 else yhat_te_ols
+        y_te_flat     = y_te.reshape(-1) if y_te.ndim > 1 else y_te
+        yhat_te_ols_f = yhat_te_ols.reshape(-1) if yhat_te_ols.ndim > 1 else yhat_te_ols
 
-            cal_ols_tr = sm.OLS(y_tr_flat, add_const(yhat_tr_ols_f)).fit()
-            alpha_ols_train = float(cal_ols_tr.params[0])
-            beta_ols_train  = float(cal_ols_tr.params[1])
-            r2_ols_train    = float(cal_ols_tr.rsquared)
+        cal_ols_tr = sm.OLS(y_tr_flat, add_const(yhat_tr_ols_f)).fit()
+        alpha_ols_train = float(cal_ols_tr.params[0])
+        beta_ols_train  = float(cal_ols_tr.params[1])
+        r2_ols_train    = float(cal_ols_tr.rsquared)
 
-            cal_ols_te = sm.OLS(y_te_flat, add_const(yhat_te_ols_f)).fit()
-            alpha_ols_test = float(cal_ols_te.params[0])
-            beta_ols_test  = float(cal_ols_te.params[1])
-            r2_ols_test    = float(cal_ols_te.rsquared)
+        cal_ols_te = sm.OLS(y_te_flat, add_const(yhat_te_ols_f)).fit()
+        alpha_ols_test = float(cal_ols_te.params[0])
+        beta_ols_test  = float(cal_ols_te.params[1])
+        r2_ols_test    = float(cal_ols_te.rsquared)
 
-            ols_rows.append({
-                "fold": fold_idx,
-                "OLS_train": mse_tr, "OLS_val": mse_val, "OLS_test": mse_te,
-                "OLS_train_diracc": da_tr, "OLS_val_diracc": da_val, "OLS_test_diracc": da_te,
-                "OLS_train_us": us_tr, "OLS_val_us": us_val, "OLS_test_us": us_te,
-                "OLS_alpha_train": alpha_ols_train,
-                "OLS_beta_train":  beta_ols_train,
-                "OLS_r2_train":    r2_ols_train,
-                "OLS_alpha":       alpha_ols_test,
-                "OLS_beta":        beta_ols_test,
-                "OLS_r2_test":     r2_ols_test,
-            })
+        ols_rows.append({
+            "fold": fold_idx,
+            "OLS_train": mse_tr, "OLS_val": mse_val, "OLS_test": mse_te,
+            "OLS_train_diracc": da_tr, "OLS_val_diracc": da_val, "OLS_test_diracc": da_te,
+            "OLS_train_us": us_tr, "OLS_val_us": us_val, "OLS_test_us": us_te,
+            "OLS_alpha_train": alpha_ols_train,
+            "OLS_beta_train":  beta_ols_train,
+            "OLS_r2_train":    r2_ols_train,
+            "OLS_alpha":       alpha_ols_test,
+            "OLS_beta":        beta_ols_test,
+            "OLS_r2_test":     r2_ols_test,
+        })
 
-            # ---- NN calibration and metrics on TEST: load model and compute everything ----
-            yhat_te_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_te, device="cuda")
+        # ---- NN calibration and metrics on TEST: load model and compute everything ----
+        yhat_te_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_te, device="cuda")
+        
+        if yhat_te_nn is not None:
+            # Shape safety for NN predictions
+            if y_te.ndim == 1 and yhat_te_nn.ndim > 1:
+                yhat_te_nn = yhat_te_nn.ravel()
+            elif y_te.ndim > 1 and yhat_te_nn.ndim == 1:
+                yhat_te_nn = yhat_te_nn.reshape(-1, 1)
             
-            if yhat_te_nn is not None:
-                # Shape safety for NN predictions
-                if y_te.ndim == 1 and yhat_te_nn.ndim > 1:
-                    yhat_te_nn = yhat_te_nn.ravel()
-                elif y_te.ndim > 1 and yhat_te_nn.ndim == 1:
-                    yhat_te_nn = yhat_te_nn.reshape(-1, 1)
-                
-                # NN metrics on test set
-                mse_te_nn = mse(y_te, yhat_te_nn)
-                da_te_nn = dir_acc(y_te, yhat_te_nn)
-                us_te_nn = undershooting(y_te, yhat_te_nn)
-                
-                # NN calibration on TEST: y_true ~ alpha + beta * y_pred_nn
-                yhat_te_nn_f = yhat_te_nn.reshape(-1) if yhat_te_nn.ndim > 1 else yhat_te_nn
-                
-                X_cal_nn = add_const(yhat_te_nn_f)  # [1, yhat]
-                cal_nn   = sm.OLS(y_te_flat, X_cal_nn).fit()
-                alpha_nn_test = float(cal_nn.params[0])
-                beta_nn_test  = float(cal_nn.params[1])
-                r2_nn_test    = float(cal_nn.rsquared)
-                
-                # Compute NN metrics on train set if needed
-                if MERGE_TRAIN_VAL:
-                    # For merged mode, compute train metrics on merged train+val data
-                    yhat_tr_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_tr, device="cuda")
-                    if yhat_tr_nn is not None:
-                        if y_tr.ndim == 1 and yhat_tr_nn.ndim > 1:
-                            yhat_tr_nn = yhat_tr_nn.ravel()
-                        elif y_tr.ndim > 1 and yhat_tr_nn.ndim == 1:
-                            yhat_tr_nn = yhat_tr_nn.reshape(-1, 1)
-                        
-                        mse_tr_nn = mse(y_tr, yhat_tr_nn)
-                        da_tr_nn = dir_acc(y_tr, yhat_tr_nn)
-                        us_tr_nn = undershooting(y_tr, yhat_tr_nn)
-                        mse_val_nn = np.nan
-                        da_val_nn = np.nan
-                        us_val_nn = np.nan
+            # NN metrics on test set
+            mse_te_nn = mse(y_te, yhat_te_nn)
+            da_te_nn = dir_acc(y_te, yhat_te_nn)
+            us_te_nn = undershooting(y_te, yhat_te_nn)
+            
+            # NN calibration on TEST: y_true ~ alpha + beta * y_pred_nn
+            yhat_te_nn_f = yhat_te_nn.reshape(-1) if yhat_te_nn.ndim > 1 else yhat_te_nn
+            
+            X_cal_nn = add_const(yhat_te_nn_f)  # [1, yhat]
+            cal_nn   = sm.OLS(y_te_flat, X_cal_nn).fit()
+            alpha_nn_test = float(cal_nn.params[0])
+            beta_nn_test  = float(cal_nn.params[1])
+            r2_nn_test    = float(cal_nn.rsquared)
+            
+            # Compute NN metrics on train set if needed
+            if MERGE_TRAIN_VAL:
+                # For merged mode, compute train metrics on merged train+val data
+                yhat_tr_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_tr, device="cuda")
+                if yhat_tr_nn is not None:
+                    if y_tr.ndim == 1 and yhat_tr_nn.ndim > 1:
+                        yhat_tr_nn = yhat_tr_nn.ravel()
+                    elif y_tr.ndim > 1 and yhat_tr_nn.ndim == 1:
+                        yhat_tr_nn = yhat_tr_nn.reshape(-1, 1)
+                    
+                    mse_tr_nn = mse(y_tr, yhat_tr_nn)
+                    da_tr_nn = dir_acc(y_tr, yhat_tr_nn)
+                    us_tr_nn = undershooting(y_tr, yhat_tr_nn)
+                    mse_val_nn = np.nan
+                    da_val_nn = np.nan
+                    us_val_nn = np.nan
 
-                        # Calibration on the train
-                        y_tr_flat    = y_tr.reshape(-1) if y_tr.ndim > 1 else y_tr
-                        yhat_tr_nn_f = yhat_tr_nn.reshape(-1) if yhat_tr_nn.ndim > 1 else yhat_tr_nn
-                        cal_nn_tr    = sm.OLS(y_tr_flat, add_const(yhat_tr_nn_f)).fit()
-                        alpha_nn_train = float(cal_nn_tr.params[0])
-                        beta_nn_train  = float(cal_nn_tr.params[1])
-                        r2_nn_train    = float(cal_nn_tr.rsquared)
+                    # Calibration on the train
+                    y_tr_flat    = y_tr.reshape(-1) if y_tr.ndim > 1 else y_tr
+                    yhat_tr_nn_f = yhat_tr_nn.reshape(-1) if yhat_tr_nn.ndim > 1 else yhat_tr_nn
+                    cal_nn_tr    = sm.OLS(y_tr_flat, add_const(yhat_tr_nn_f)).fit()
+                    alpha_nn_train = float(cal_nn_tr.params[0])
+                    beta_nn_train  = float(cal_nn_tr.params[1])
+                    r2_nn_train    = float(cal_nn_tr.rsquared)
 
-                        del yhat_tr_nn
-                    else:
-                        mse_tr_nn = da_tr_nn = mse_val_nn = da_val_nn = np.nan
+                    del yhat_tr_nn
                 else:
-                    # For separate mode, compute both train and val metrics
-                    yhat_tr_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_tr, device="cuda")
-                    yhat_val_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_val, device="cuda")
+                    mse_tr_nn = da_tr_nn = mse_val_nn = da_val_nn = np.nan
+            else:
+                # For separate mode, compute both train and val metrics
+                yhat_tr_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_tr, device="cuda")
+                yhat_val_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_val, device="cuda")
+                
+                if yhat_tr_nn is not None:
+                    if y_tr.ndim == 1 and yhat_tr_nn.ndim > 1:
+                        yhat_tr_nn = yhat_tr_nn.ravel()
+                    elif y_tr.ndim > 1 and yhat_tr_nn.ndim == 1:
+                        yhat_tr_nn = yhat_tr_nn.reshape(-1, 1)
+                    mse_tr_nn = mse(y_tr, yhat_tr_nn)
+                    da_tr_nn = dir_acc(y_tr, yhat_tr_nn)
+                    us_tr_nn = undershooting(y_tr, yhat_tr_nn)
                     
-                    if yhat_tr_nn is not None:
-                        if y_tr.ndim == 1 and yhat_tr_nn.ndim > 1:
-                            yhat_tr_nn = yhat_tr_nn.ravel()
-                        elif y_tr.ndim > 1 and yhat_tr_nn.ndim == 1:
-                            yhat_tr_nn = yhat_tr_nn.reshape(-1, 1)
-                        mse_tr_nn = mse(y_tr, yhat_tr_nn)
-                        da_tr_nn = dir_acc(y_tr, yhat_tr_nn)
-                        us_tr_nn = undershooting(y_tr, yhat_tr_nn)
-                        
-        
-                        # Calibration on the train
-                        y_tr_flat    = y_tr.reshape(-1) if y_tr.ndim > 1 else y_tr
-                        yhat_tr_nn_f = yhat_tr_nn.reshape(-1) if yhat_tr_nn.ndim > 1 else yhat_tr_nn
-                        cal_nn_tr    = sm.OLS(y_tr_flat, add_const(yhat_tr_nn_f)).fit()
-                        alpha_nn_train = float(cal_nn_tr.params[0])
-                        beta_nn_train  = float(cal_nn_tr.params[1])
-                        r2_nn_train    = float(cal_nn_tr.rsquared)
+    
+                    # Calibration on the train
+                    y_tr_flat    = y_tr.reshape(-1) if y_tr.ndim > 1 else y_tr
+                    yhat_tr_nn_f = yhat_tr_nn.reshape(-1) if yhat_tr_nn.ndim > 1 else yhat_tr_nn
+                    cal_nn_tr    = sm.OLS(y_tr_flat, add_const(yhat_tr_nn_f)).fit()
+                    alpha_nn_train = float(cal_nn_tr.params[0])
+                    beta_nn_train  = float(cal_nn_tr.params[1])
+                    r2_nn_train    = float(cal_nn_tr.rsquared)
 
-                        del yhat_tr_nn
-                    else:
-                        mse_tr_nn = da_tr_nn = np.nan
+                    del yhat_tr_nn
+                else:
+                    mse_tr_nn = da_tr_nn = np.nan
+                
+                if yhat_val_nn is not None:
+                    if y_val.ndim == 1 and yhat_val_nn.ndim > 1:
+                        yhat_val_nn = yhat_val_nn.ravel()
+                    elif y_val.ndim > 1 and yhat_val_nn.ndim == 1:
+                        yhat_val_nn = yhat_val_nn.reshape(-1, 1)
+                    mse_val_nn = mse(y_val, yhat_val_nn)
+                    da_val_nn = dir_acc(y_val, yhat_val_nn)
+                    us_val_nn = undershooting(y_val, yhat_val_nn)
                     
-                    if yhat_val_nn is not None:
-                        if y_val.ndim == 1 and yhat_val_nn.ndim > 1:
-                            yhat_val_nn = yhat_val_nn.ravel()
-                        elif y_val.ndim > 1 and yhat_val_nn.ndim == 1:
-                            yhat_val_nn = yhat_val_nn.reshape(-1, 1)
-                        mse_val_nn = mse(y_val, yhat_val_nn)
-                        da_val_nn = dir_acc(y_val, yhat_val_nn)
-                        us_val_nn = undershooting(y_val, yhat_val_nn)
-                        
-                        del yhat_val_nn
-                    else:
-                        mse_val_nn = da_val_nn = np.nan
-            else:
-                # If NN loading failed, set all metrics to NaN
-                alpha_nn = beta_nn = np.nan
-                mse_tr_nn = mse_val_nn = mse_te_nn = np.nan
-                da_tr_nn = da_val_nn = da_te_nn = np.nan
-                us_te_nn = us_val_nn = np.nan
-            
-            nn_calib_rows.append({
-                "fold": fold_idx,
-                "NN_alpha_train": alpha_nn_train,
-                "NN_beta_train":  beta_nn_train,
-                "NN_r2_train":    r2_nn_train,
-                "NN_alpha":       alpha_nn_test,
-                "NN_beta":        beta_nn_test,
-                "NN_r2_test":     r2_nn_test,
-                "NN_train_computed": mse_tr_nn,
-                "NN_val_computed":   mse_val_nn,
-                "NN_test_computed":  mse_te_nn,
-                "NN_train_diracc_computed": da_tr_nn,
-                "NN_val_diracc_computed":   da_val_nn,
-                "NN_test_diracc_computed":  da_te_nn,
-                "NN_train_us": us_tr_nn,
-                "NN_val_us":   us_val_nn,
-                "NN_test_us":  us_te_nn,
-            })
-
-            # ---- free big temporaries ASAP ----
-            del X_tr, y_tr, X_te, y_te
-            if not MERGE_TRAIN_VAL:
-                del X_val, y_val, yhat_val_ols
-            del yhat_tr_ols, yhat_te_ols, models
-            if yhat_te_nn is not None:
-                del yhat_te_nn
-            import gc; gc.collect()
-
-        var_df = pd.DataFrame(var_rows)
-        ols    = pd.DataFrame(ols_rows)
-        nn_calib = pd.DataFrame(nn_calib_rows)
-
-        # --- Debug/guard: ensure unique fold keys before any merge ---
-        var_df   = _dedupe_on_fold(var_df,   "var_df")
-        ols      = _dedupe_on_fold(ols,      "ols")
-        nn_calib = _dedupe_on_fold(nn_calib, "nn_calib")
-
-
-        ols = ols.merge(var_df, on="fold", how="left")
-
-        # Normalize OLS
-        if USE_NMSE:
-            ols["OLS_train"] = ols["OLS_train"] / ols["var_train"]
-            if not MERGE_TRAIN_VAL:
-                ols["OLS_val"] = ols["OLS_val"] / ols["var_val"]
-            else:
-                ols["OLS_val"] = np.nan  # No validation in merged mode
-            ols["OLS_test"] = ols["OLS_test"] / ols["var_test"]
+                    del yhat_val_nn
+                else:
+                    mse_val_nn = da_val_nn = np.nan
         else:
-            ols["OLS_train"] = ols["OLS_train"]
-            if not MERGE_TRAIN_VAL:
-                ols["OLS_val"] = ols["OLS_val"]
-            else:
-                ols["OLS_val"] = np.nan  # No validation in merged mode
-            ols["OLS_test"] = ols["OLS_test"]
-
-        # 2) Merge NN with variances and calibration data, use computed metrics
-        nn = nn_calib.merge(var_df, on="fold", how="left", validate="one_to_one")
-
-        # Use computed NN metrics instead of results.csv when available
-        if USE_NMSE:
-            nn["NN_train"] = nn["NN_train_computed"] / nn["var_train"]
-            nn["NN_val"]   = np.nan if MERGE_TRAIN_VAL else nn["NN_val_computed"] / nn["var_val"]
-            nn["NN_test"]  = nn["NN_test_computed"] / nn["var_test"]
-        else:
-            nn["NN_train"] = nn["NN_train_computed"]
-            nn["NN_val"]   = np.nan if MERGE_TRAIN_VAL else nn["NN_val_computed"]
-            nn["NN_test"]  = nn["NN_test_computed"]
-
-        # Use computed directional accuracy
-        nn["NN_train_diracc"] = nn["NN_train_diracc_computed"]
-        nn["NN_val_diracc"]   = np.nan if MERGE_TRAIN_VAL else nn["NN_val_diracc_computed"]
-        nn["NN_test_diracc"]  = nn["NN_test_diracc_computed"]
-
-        # 3) Per-fold comparison + normalized flag (now includes calibration metrics)
-        assert ols["fold"].is_unique, "OLS has duplicate folds before merge"
-        assert nn["fold"].is_unique,  "NN has duplicate folds before merge"
-
-        per_fold = ols.merge(
-            nn[[
-                "fold",
-                "NN_train","NN_val","NN_test",
-                "NN_train_diracc","NN_val_diracc","NN_test_diracc",
-                "NN_alpha_train","NN_beta_train","NN_r2_train",
-                "NN_alpha","NN_beta","NN_r2_test",
-                "NN_train_us","NN_val_us","NN_test_us"
-            ]],
-            on="fold", how="left"
-        )
-        per_fold["normalized"] = USE_NMSE
-
-        # 4) Aggregations (now includes calibration metrics)
-        avg_df = pd.DataFrame([
-            {"Model": "OLS",
-             "Train MSE": per_fold["OLS_train"].mean(),
-             "Val MSE":   per_fold["OLS_val"].mean(),
-             "Test MSE":  per_fold["OLS_test"].mean(),
-             "Train DirAcc": per_fold["OLS_train_diracc"].mean(),
-             "Val DirAcc":   per_fold["OLS_val_diracc"].mean(),
-             "Test DirAcc":  per_fold["OLS_test_diracc"].mean(),
-             "Train US": per_fold["OLS_train_us"].mean(),
-             "Val US":   per_fold["OLS_val_us"].mean(),
-             "Test US":  per_fold["OLS_test_us"].mean(),
-             "Alpha Train": per_fold["OLS_alpha_train"].mean(),
-             "Beta Train":  per_fold["OLS_beta_train"].mean(),
-             "Calib R2 Train": per_fold["OLS_r2_train"].mean(),
-             "Alpha": per_fold["OLS_alpha"].mean(),
-             "Beta":  per_fold["OLS_beta"].mean(),
-             "Calib R2 Test": per_fold["OLS_r2_test"].mean(),
-             "normalized": USE_NMSE},
-            {"Model": "NN",
-             "Train MSE": per_fold["NN_train"].mean(),
-             "Val MSE":   per_fold["NN_val"].mean(),
-             "Test MSE":  per_fold["NN_test"].mean(),
-             "Train DirAcc": per_fold["NN_train_diracc"].mean(),
-             "Val DirAcc":   per_fold["NN_val_diracc"].mean(),
-             "Test DirAcc":  per_fold["NN_test_diracc"].mean(),
-             "Train US": per_fold["NN_train_us"].mean(),
-             "Val US":   per_fold["NN_val_us"].mean(),
-             "Test US":  per_fold["NN_test_us"].mean(),
-             "Alpha Train": per_fold["NN_alpha_train"].mean(),
-             "Beta Train":  per_fold["NN_beta_train"].mean(),
-             "Calib R2 Train": per_fold["NN_r2_train"].mean(),
-             "Alpha": per_fold["NN_alpha"].mean(),
-             "Beta":  per_fold["NN_beta"].mean(),
-             "Calib R2 Test": per_fold["NN_r2_test"].mean(),
-             "normalized": USE_NMSE},
-        ])
-
-        std_df = pd.DataFrame([
-            {"Model": "OLS",
-             "Train MSE": per_fold["OLS_train"].std(),
-             "Val MSE":   per_fold["OLS_val"].std(),
-             "Test MSE":  per_fold["OLS_test"].std(),
-             "Train DirAcc": per_fold["OLS_train_diracc"].std(),
-             "Val DirAcc":   per_fold["OLS_val_diracc"].std(),
-             "Test DirAcc":  per_fold["OLS_test_diracc"].std(),
-             "Train US": per_fold["OLS_train_us"].std(),
-             "Val US":   per_fold["OLS_val_us"].std(),
-             "Test US":  per_fold["OLS_test_us"].std(),
-             "Alpha Train": per_fold["OLS_alpha_train"].std(),
-             "Beta Train":  per_fold["OLS_beta_train"].std(),
-             "Calib R2 Train": per_fold["OLS_r2_train"].std(),
-             "Alpha": per_fold["OLS_alpha"].std(),
-             "Beta":  per_fold["OLS_beta"].std(),
-             "Calib R2 Test": per_fold["OLS_r2_test"].std(),
-             "normalized": USE_NMSE},
-            {"Model": "NN",
-             "Train MSE": per_fold["NN_train"].std(),
-             "Val MSE":   per_fold["NN_val"].std(),
-             "Test MSE":  per_fold["NN_test"].std(),
-             "Train DirAcc": per_fold["NN_train_diracc"].std(),
-             "Val DirAcc":   per_fold["NN_val_diracc"].std(),
-             "Test DirAcc":  per_fold["NN_test_diracc"].std(),
-             "Train US": per_fold["NN_train_us"].std(),
-             "Val US":   per_fold["NN_val_us"].std(),
-             "Test US":  per_fold["NN_test_us"].std(),
-             "Alpha Train": per_fold["NN_alpha_train"].std(),
-             "Beta Train":  per_fold["NN_beta_train"].std(),
-             "Calib R2 Train": per_fold["NN_r2_train"].std(),
-             "Alpha": per_fold["NN_alpha"].std(),
-             "Beta":  per_fold["NN_beta"].std(),
-             "Calib R2 Test": per_fold["NN_r2_test"].std(),
-             "normalized": USE_NMSE},
-        ]).rename(columns=lambda c: c if c in ["Model", "normalized"] else c + " Std")
+            # If NN loading failed, set all metrics to NaN
+            alpha_nn = beta_nn = np.nan
+            mse_tr_nn = mse_val_nn = mse_te_nn = np.nan
+            da_tr_nn = da_val_nn = da_te_nn = np.nan
+            us_te_nn = us_val_nn = np.nan
         
-        summary = avg_df.merge(std_df, on=["Model", "normalized"])
+        nn_calib_rows.append({
+            "fold": fold_idx,
+            "NN_alpha_train": alpha_nn_train,
+            "NN_beta_train":  beta_nn_train,
+            "NN_r2_train":    r2_nn_train,
+            "NN_alpha":       alpha_nn_test,
+            "NN_beta":        beta_nn_test,
+            "NN_r2_test":     r2_nn_test,
+            "NN_train_computed": mse_tr_nn,
+            "NN_val_computed":   mse_val_nn,
+            "NN_test_computed":  mse_te_nn,
+            "NN_train_diracc_computed": da_tr_nn,
+            "NN_val_diracc_computed":   da_val_nn,
+            "NN_test_diracc_computed":  da_te_nn,
+            "NN_train_us": us_tr_nn,
+            "NN_val_us":   us_val_nn,
+            "NN_test_us":  us_te_nn,
+        })
 
-        # 5) Console + Save (unchanged)
-        which = "NMSE" if USE_NMSE else "MSE"
-        print_table(avg_df, title=f"Average across folds ({which})")
+        # ---- free big temporaries ASAP ----
+        del X_tr, y_tr, X_te, y_te
+        if not MERGE_TRAIN_VAL:
+            del X_val, y_val, yhat_val_ols
+        del yhat_tr_ols, yhat_te_ols, models
+        if yhat_te_nn is not None:
+            del yhat_te_nn
+        import gc; gc.collect()
 
-        out_dir = BASE / "analysis"
-        out_dir.mkdir(exist_ok=True)
-        per_fold.to_csv(out_dir / "per_fold_metrics.csv", index=False)
-        avg_df.to_csv(out_dir / "fold_avg_metrics.csv", index=False)
-        summary.to_csv(out_dir / "fold_avg_metrics_with_std.csv", index=False)
+    var_df = pd.DataFrame(var_rows)
+    ols    = pd.DataFrame(ols_rows)
+    nn_calib = pd.DataFrame(nn_calib_rows)
+
+    # --- Debug/guard: ensure unique fold keys before any merge ---
+    var_df   = _dedupe_on_fold(var_df,   "var_df")
+    ols      = _dedupe_on_fold(ols,      "ols")
+    nn_calib = _dedupe_on_fold(nn_calib, "nn_calib")
+
+
+    ols = ols.merge(var_df, on="fold", how="left")
+
+    # Normalize OLS
+    if USE_NMSE:
+        ols["OLS_train"] = ols["OLS_train"] / ols["var_train"]
+        if not MERGE_TRAIN_VAL:
+            ols["OLS_val"] = ols["OLS_val"] / ols["var_val"]
+        else:
+            ols["OLS_val"] = np.nan  # No validation in merged mode
+        ols["OLS_test"] = ols["OLS_test"] / ols["var_test"]
+    else:
+        ols["OLS_train"] = ols["OLS_train"]
+        if not MERGE_TRAIN_VAL:
+            ols["OLS_val"] = ols["OLS_val"]
+        else:
+            ols["OLS_val"] = np.nan  # No validation in merged mode
+        ols["OLS_test"] = ols["OLS_test"]
+
+    # 2) Merge NN with variances and calibration data, use computed metrics
+    nn = nn_calib.merge(var_df, on="fold", how="left", validate="one_to_one")
+
+    # Use computed NN metrics instead of results.csv when available
+    if USE_NMSE:
+        nn["NN_train"] = nn["NN_train_computed"] / nn["var_train"]
+        nn["NN_val"]   = np.nan if MERGE_TRAIN_VAL else nn["NN_val_computed"] / nn["var_val"]
+        nn["NN_test"]  = nn["NN_test_computed"] / nn["var_test"]
+    else:
+        nn["NN_train"] = nn["NN_train_computed"]
+        nn["NN_val"]   = np.nan if MERGE_TRAIN_VAL else nn["NN_val_computed"]
+        nn["NN_test"]  = nn["NN_test_computed"]
+
+    # Use computed directional accuracy
+    nn["NN_train_diracc"] = nn["NN_train_diracc_computed"]
+    nn["NN_val_diracc"]   = np.nan if MERGE_TRAIN_VAL else nn["NN_val_diracc_computed"]
+    nn["NN_test_diracc"]  = nn["NN_test_diracc_computed"]
+
+    # 3) Per-fold comparison + normalized flag (now includes calibration metrics)
+    assert ols["fold"].is_unique, "OLS has duplicate folds before merge"
+    assert nn["fold"].is_unique,  "NN has duplicate folds before merge"
+
+    per_fold = ols.merge(
+        nn[[
+            "fold",
+            "NN_train","NN_val","NN_test",
+            "NN_train_diracc","NN_val_diracc","NN_test_diracc",
+            "NN_alpha_train","NN_beta_train","NN_r2_train",
+            "NN_alpha","NN_beta","NN_r2_test",
+            "NN_train_us","NN_val_us","NN_test_us"
+        ]],
+        on="fold", how="left"
+    )
+    per_fold["normalized"] = USE_NMSE
+
+    # 4) Aggregations (now includes calibration metrics)
+    avg_df = pd.DataFrame([
+        {"Model": "OLS",
+         "Train MSE": per_fold["OLS_train"].mean(),
+         "Val MSE":   per_fold["OLS_val"].mean(),
+         "Test MSE":  per_fold["OLS_test"].mean(),
+         "Train DirAcc": per_fold["OLS_train_diracc"].mean(),
+         "Val DirAcc":   per_fold["OLS_val_diracc"].mean(),
+         "Test DirAcc":  per_fold["OLS_test_diracc"].mean(),
+         "Train US": per_fold["OLS_train_us"].mean(),
+         "Val US":   per_fold["OLS_val_us"].mean(),
+         "Test US":  per_fold["OLS_test_us"].mean(),
+         "Alpha Train": per_fold["OLS_alpha_train"].mean(),
+         "Beta Train":  per_fold["OLS_beta_train"].mean(),
+         "Calib R2 Train": per_fold["OLS_r2_train"].mean(),
+         "Alpha": per_fold["OLS_alpha"].mean(),
+         "Beta":  per_fold["OLS_beta"].mean(),
+         "Calib R2 Test": per_fold["OLS_r2_test"].mean(),
+         "normalized": USE_NMSE},
+        {"Model": "NN",
+         "Train MSE": per_fold["NN_train"].mean(),
+         "Val MSE":   per_fold["NN_val"].mean(),
+         "Test MSE":  per_fold["NN_test"].mean(),
+         "Train DirAcc": per_fold["NN_train_diracc"].mean(),
+         "Val DirAcc":   per_fold["NN_val_diracc"].mean(),
+         "Test DirAcc":  per_fold["NN_test_diracc"].mean(),
+         "Train US": per_fold["NN_train_us"].mean(),
+         "Val US":   per_fold["NN_val_us"].mean(),
+         "Test US":  per_fold["NN_test_us"].mean(),
+         "Alpha Train": per_fold["NN_alpha_train"].mean(),
+         "Beta Train":  per_fold["NN_beta_train"].mean(),
+         "Calib R2 Train": per_fold["NN_r2_train"].mean(),
+         "Alpha": per_fold["NN_alpha"].mean(),
+         "Beta":  per_fold["NN_beta"].mean(),
+         "Calib R2 Test": per_fold["NN_r2_test"].mean(),
+         "normalized": USE_NMSE},
+    ])
+
+    std_df = pd.DataFrame([
+        {"Model": "OLS",
+         "Train MSE": per_fold["OLS_train"].std(),
+         "Val MSE":   per_fold["OLS_val"].std(),
+         "Test MSE":  per_fold["OLS_test"].std(),
+         "Train DirAcc": per_fold["OLS_train_diracc"].std(),
+         "Val DirAcc":   per_fold["OLS_val_diracc"].std(),
+         "Test DirAcc":  per_fold["OLS_test_diracc"].std(),
+         "Train US": per_fold["OLS_train_us"].std(),
+         "Val US":   per_fold["OLS_val_us"].std(),
+         "Test US":  per_fold["OLS_test_us"].std(),
+         "Alpha Train": per_fold["OLS_alpha_train"].std(),
+         "Beta Train":  per_fold["OLS_beta_train"].std(),
+         "Calib R2 Train": per_fold["OLS_r2_train"].std(),
+         "Alpha": per_fold["OLS_alpha"].std(),
+         "Beta":  per_fold["OLS_beta"].std(),
+         "Calib R2 Test": per_fold["OLS_r2_test"].std(),
+         "normalized": USE_NMSE},
+        {"Model": "NN",
+         "Train MSE": per_fold["NN_train"].std(),
+         "Val MSE":   per_fold["NN_val"].std(),
+         "Test MSE":  per_fold["NN_test"].std(),
+         "Train DirAcc": per_fold["NN_train_diracc"].std(),
+         "Val DirAcc":   per_fold["NN_val_diracc"].std(),
+         "Test DirAcc":  per_fold["NN_test_diracc"].std(),
+         "Train US": per_fold["NN_train_us"].std(),
+         "Val US":   per_fold["NN_val_us"].std(),
+         "Test US":  per_fold["NN_test_us"].std(),
+         "Alpha Train": per_fold["NN_alpha_train"].std(),
+         "Beta Train":  per_fold["NN_beta_train"].std(),
+         "Calib R2 Train": per_fold["NN_r2_train"].std(),
+         "Alpha": per_fold["NN_alpha"].std(),
+         "Beta":  per_fold["NN_beta"].std(),
+         "Calib R2 Test": per_fold["NN_r2_test"].std(),
+         "normalized": USE_NMSE},
+    ]).rename(columns=lambda c: c if c in ["Model", "normalized"] else c + " Std")
+    
+    summary = avg_df.merge(std_df, on=["Model", "normalized"])
+
+    # 5) Console + Save (unchanged)
+    which = "NMSE" if USE_NMSE else "MSE"
+    print_table(avg_df, title=f"Average across folds ({which})")
+
+    out_dir = BASE / "analysis"
+    out_dir.mkdir(exist_ok=True)
+    per_fold.to_csv(out_dir / "per_fold_metrics.csv", index=False)
+    avg_df.to_csv(out_dir / "fold_avg_metrics.csv", index=False)
+    summary.to_csv(out_dir / "fold_avg_metrics_with_std.csv", index=False)
 
 if __name__ == "__main__":
     main()

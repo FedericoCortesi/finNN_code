@@ -22,7 +22,7 @@ from sklearn.linear_model import Lasso
 
 # Normalize MSE by target variance on each split
 USE_NMSE = True
-MERGE_TRAIN_VAL = False
+MERGE_TRAIN_VAL = True
 ACCURACY: int = 4
 
 
@@ -199,9 +199,9 @@ def _dedupe_on_fold(df: pd.DataFrame, name: str) -> pd.DataFrame:
 # Main
 # =========================
 def main():
-    NAME = "exp_026_lstm_100_muon"
-    for trial in os.listdir(f"{VOL_EXPERIMENTS_DIR}/{NAME}")[12:16]:
-        TRIAL = trial
+    names = ["exp_034_cnn_100_muon_lr", "exp_035_mlp_100_muon_lr", "exp_036_lstm_100_muon_lr"]
+    for NAME in names:
+        TRIAL = "trial_search_best"
         BASE  = Path(VOL_EXPERIMENTS_DIR) / NAME / TRIAL
         print(f'\n\nAnalyzing {BASE}\n\n')
 
@@ -311,7 +311,7 @@ def main():
                 # Simple grid search over alphas
                 best_alpha = 0.05
                 best_val_mse = float('inf')
-                for alpha in tqdm([0.001, 0.01, 0.025, 0.05, 0.1], desc="fitting lasso"):
+                for alpha in tqdm([0.001, 0.01, 0.025, 0.05, 0.1, 0.25], desc="fitting lasso"):
                     temp_models = fit_lasso_per_target(X_tr, y_tr, alpha=alpha)
                     temp_preds = pred_lasso(temp_models, X_val)
                     if y_val.ndim == 1:

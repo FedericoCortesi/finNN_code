@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -p mit_normal_gpu            # partition (GPU queue)
-#SBATCH --gres=gpu:h200:1            # request 1 GPU (adjust if needed)
-#SBATCH --cpus-per-task=32           # number of CPU cores
+#SBATCH --gres=gpu:1                 # request 1 GPU (adjust if needed)
+#SBATCH --cpus-per-task=8            # number of CPU cores
 #SBATCH --mem=128G                   # memory
 #SBATCH --time=06:00:00              # allocated time (6h is the max)
 #SBATCH -J finnn_train               # job name
@@ -24,4 +24,4 @@ conda activate torch_h200_py312
 cd /orcd/home/002/corte911/code/finNN_code
 
 # === run your python script ===
-python -u src/run_experiments.py --config vol_lstm.yaml
+python -u src/run_experiments.py --config prc_mlp.yaml

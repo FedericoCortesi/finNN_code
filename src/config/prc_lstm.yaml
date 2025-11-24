@@ -1,5 +1,5 @@
 experiment:
-  name: "lstm_40_lr"
+  name: "lstm_100_lr"
   type: "price_prediction"
   random_state: 1234
   monitor: "val_loss"

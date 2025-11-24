@@ -1,5 +1,5 @@
 experiment:
-  name: "cnn_40_lr"
+  name: "cnn_100_lr"
   type: "price_prediction"
   random_state: 1234
   monitor: "val_loss"

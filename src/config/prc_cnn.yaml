@@ -1,62 +1,83 @@
 experiment:
-  name: "debug"
+  name: "cnn_40_lr"
   type: "price_prediction"
   random_state: 1234
   monitor: "val_loss"
   mode: "min"
-  n_trials: 10 # for random search 
+  n_trials: 15 # for random search 
   random_state: 42 # for reproducibility
-  hyperparams_search: False
+  hyperparams_search: True
 
 # this whole thing might be useless
 data: 
-  # df_path: "data/sp500_daily_data.parquet" # if left out the pipeline takes it automatically
-  df_master:  # if left out the pipeline takes it automatically
+  df_path:  # if left out the pipeline takes it automatically
+  df_master: # if left out the pipeline takes it automatically
 
 walkforward:
   target_col: ret
   lookback: 0
   max_folds: 
-  step: 251 # 6288 / (5*2) 
+  step: 1257
   ratio_train: 3
   ratio_val: 1
   ratio_test: 1
-  lags: 50
+  lags: 100
   scale: True
-  clip: False
+  annualize: True
+  scale_type: standard 
+  clip: 2.5
   #purge_days: 20
   #embargo_days: 20
 
 trainer:
   hparams:
-    epochs: 250
+    epochs: 50
     batch_size: 512 # P. said 256-512 to "kill some noise"
-    torch_patience: 75 # if empty early stopping is not active
+    torch_patience: 10 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
-    optuna_patience: 25  
+    optuna_patience: 10 
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    lr: 1e-3
-    weight_decay: 1e-5 # change to zero
-
+    optimizer_type: adam
+  search:
+    lr: {type: float, low: 1.0e-5, high: 1.0e-1, log: False}
+    weight_decay: {type: float, low: 1.0e-5, high: 1.0e-1, log: False}
 
 model:
   name: "simplecnn"
   hparams:  
-    conv_channels: [256, 256, 512]
-    conv_activation:    [relu, relu, relu]
-    kernel_size: 3
-    padding: 1
-    pool: adaptive_max
-    pool_k: 64
-    dropout_rate: 0
-    mlp_hidden_sizes:  [256, 128] 
-    mlp_activation:    [relu, relu]
-    dropout_rate:  0.0
-    use_bn: False       # if batch size ≥ 256; else keep False or use LayerNorm
-    output_activation: linear
+    # ==========================
+    #  MLP HEAD PARAMETERS
+    # ==========================
+    mlp_hidden_sizes: [512, 256]                # Fully connected layers after LSTM readout
+    mlp_activation: [relu, relu]                # Activations for each MLP layer
+    dropout_rate: 0                             # Dropout applied in MLP layers
 
+    # ==========================
+    #  LSTM CORE PARAMETERS
+    # ==========================
+    lstm_hidden_sizes: [256, 256]               # Hidden size(s) of the LSTM (stack depth = len(list))
+    lstm_dropout: 0                             # Dropout between stacked LSTM layers
+    bidirectional: False                        # If True, concatenates forward & backward hidden states
+    readout: last                               # "last" | "mean" | "max"  → how to summarize sequence output
+    use_ln: False                               # Apply LayerNorm on the readout (stabilizes noisy sequences)
+
+    # ==========================
+    #  CNN BLOCK PARAMETERS
+    # ==========================
+    conv_channels: [64, 128, 256]               # Channels per Conv1D block
+    conv_activation: [relu, relu, relu]         # Activations for each Conv1D block
+    kernel_size: 8                              # Convolution kernel size
+    padding: 1                                  # Convolution padding
+    pool: adaptive_avg                          # "adaptive_avg" or "adaptive_max"
+    pool_k: 16                                  # Output size of pooling layer
+    use_bn: False                               # Apply BatchNorm in convolutional layers
+
+    # ==========================
+    #  OUTPUT PARAMETERS
+    # ==========================
+    output_activation: linear                   # Activation for final layer (e.g., linear for regression)
 
  
 

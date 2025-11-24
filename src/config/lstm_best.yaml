@@ -29,15 +29,16 @@ model:
     pool_k: 4
     use_bn: false
     output_activation: linear
+    n_layers: 2
   search: {}
 
 trainer:
   hparams:
     epochs: 100
     batch_size: 512
-    torch_patience: 25
+    torch_patience: 10
     min_delta: "1e-10"
-    optuna_patience: 25
+    optuna_patience: 10
     loss: mse
     metrics:
       - mae
@@ -45,9 +46,9 @@ trainer:
       - dir_acc
       - qlike
     val_every: 1
-    weight_decay: "1e-4"
-    lr: "3e-3"
-  search: {}
+    optimizer_type: adam
+    lr: 0.015607892088416904
+    weight_decay: 3e-4
 
 walkforward:
   target_col: var
@@ -65,12 +66,12 @@ walkforward:
   clip: 0.1
 
 experiment:
-  name: exp_019_lstm_100_search
-  hyperparams_search: false
+  name: lstm_100_lr
+  hyperparams_search: False
   monitor: val_loss
   mode: min
   type: volatility
-  n_trials: 25
+  n_trials: 15
   random_state: 42
 
 data:

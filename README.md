@@ -27,412 +27,155 @@ finNN_code/
 │   │   ├── __init__.py
 │   │   └── mlp.py                   # Multi-layer perceptron implementation
 │   ├── pipeline/                    # Data processing and validation
-│   │   ├── __init__.py
-│   │   ├── preprocessing.py         # Data preprocessing utilities
-│   │   ├── walkforward.py          # Walk-forward cross-validation engine
-│   │   └── wf_config.py            # Walk-forward configuration dataclass
-│   ├── price_prediction/           # Price prediction experiments
-│   │   ├── __init__.py
-│   │   ├── visuals.ipynb           # Results visualization
-│   │   ├── benchmarks/             # Baseline model implementations
-│   │   │   ├── __init__.py
-│   │   │   └── regressions.ipynb   # Linear regression benchmarks
-│   │   ├── experiments/            # Experiment results and saved models
-│   │   │   ├── exp_001_20251011_162012_mlp/
-│   │   │   ├── exp_002_20251012_165113_pippo/
-│   │   │   └── ...                 # Other experiment directories
-│   │   └── legacy/                 # Legacy training code
-│   │       ├── __init__.py
-│   │       ├── debug.py
-│   │       ├── training_models.py
-│   │       └── training_pipeline.ipynb
-│   ├── training_routine/           # Training infrastructure
-│   │   ├── trainer.py              # Model training orchestrator
-│   │   └── metrics.py              # Training metrics computation
-│   ├── utils/                      # Utility functions
-│   │   ├── __init__.py
-│   │   ├── custom_formatter.py     # Custom logging formatters
-│   │   ├── gpu_test.py             # GPU availability testing
-│   │   ├── logging_utils.py        # Experiment logging utilities
-│   │   └── paths.py                # Path management
-│   ├── debug.ipynb                 # Main debugging notebook
-│   └── run_experiments.py          # Main experiment runner script
-├── logs/                           # SLURM job logs
-│   ├── slurm_*.out                 # SLURM stdout logs
-│   └── slurm_*.err                 # SLURM stderr logs
-├── train_job.sh                    # SLURM job submission script
-├── pyproject.toml                  # Project dependencies and metadata
-├── ssh_guide.md                    # SSH connection guide
-└── README.md                       # This file
+# finNN_code — Financial Neural Network Training Pipeline
+
+This repository is a compact but feature-complete training framework for financial time-series prediction. It focuses on correct temporal validation (walk-forward cross-validation), reproducible experiments, and easy comparisons against simple benchmark models.
+
+The README below explains the repository layout, how to run experiments, and the benchmark folder so you can get started quickly.
+
+**Short audience note:** this is aimed at a programming-savvy reader who may not be a machine learning expert. Commands and file paths are shown as copy-paste examples.
+
+**Repository Structure (high level)**
+
+```
+`/` - project root
+├── `src/`                         # Package sources (package-dir for setuptools)
+│   ├── `config/`                  # YAML configs & typed config classes
+│   ├── `data/`                    # Data, notebooks, small fixtures
+│   ├── `hyperparams_search/`      # Optuna helper code
+│   ├── `models/`                  # Neural net model implementations (e.g. `mlp.py`)
+│   ├── `pipeline/`                # Preprocessing & walk-forward logic
+│   ├── `price_prediction/`        # Experiments, benchmarks, visuals
+│   ├── `training_routine/`        # Trainer and metric computations
+│   └── `utils/`                   # Logging, paths, GPU checks, helpers
+├── `logs/`                         # SLURM job logs (stdout/stderr)
+├── `train_job.sh`                  # Example SLURM submission script
+├── `pyproject.toml`                # Project metadata & minimal deps
+├── `ssh_guide.md`                  # Tips for running on remote machines
+└── `README.md`                     # This file
 ```
 
-## 🚀 Quick Start
+**What to expect in `src/price_prediction/benchmarks/`**
+- **Purpose:** simple baselines (e.g. linear regressions) used to compare against neural models.
+- **Files:** small notebooks and helper scripts such as `regressions.ipynb` that run straightforward models over the same walk-forward splits as the main experiments.
+- **How to use:** run the notebook or call the helper functions to produce baseline metrics and plots that live alongside experiment outputs for direct comparison.
 
-### Prerequisites
+**Quick Start — run an experiment locally**
 
-- Python ≥ 3.12
-- PyTorch (for GPU training)
-- CUDA-capable GPU (recommended)
+1. Create a Python environment (Python >= 3.12 is the project requirement):
 
-### Installation
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd finNN_code
-   ```
+2. Install the package in editable mode and dependencies. The project uses a minimal `pyproject.toml` (see `requires-python` and base deps). If you prefer `pip`:
 
-2. **Install the package:**
-   ```bash
-   pip install -e .
-   ```
+```bash
+pip install -e .
+pip install -r requirements.txt  # if you keep one locally; otherwise install extras manually
+```
 
-3. **Verify GPU setup:**
-   ```bash
-   python src/utils/gpu_test.py
-   ```
+3. Confirm GPU (optional):
 
-### Running Your First Experiment
+```bash
+python src/utils/gpu_test.py
+```
 
-1. **Basic experiment with default settings:**
-   ```bash
-   python src/run_experiments.py --config default.yaml
-   ```
+4. Run an experiment using a YAML config in `src/config/` (examples: `default.yaml`, `debug.yaml`, `search_debug.yaml`):
 
-2. **Debug experiment (smaller dataset, fewer epochs):**
-   ```bash
-   python src/run_experiments.py --config debug.yaml
-   ```
+```bash
+python src/run_experiments.py --config src/config/default.yaml
+```
 
-3. **Custom experiment name:**
-   ```bash
-   python src/run_experiments.py --config default.yaml --exp-name my_first_experiment
-   ```
+- Use `debug.yaml` for quick/development runs:
 
-4. **Hyperparameter search:**
-   ```bash
-   python src/run_experiments.py --config search_debug.yaml
-   ```
+```bash
+python src/run_experiments.py --config src/config/debug.yaml
+```
 
-## 📊 Walk-Forward Cross-Validation
+- To run a hyperparameter search (Optuna-backed):
 
-The core of this framework is the walk-forward cross-validation system, which ensures proper temporal validation for time series data:
+```bash
+python src/run_experiments.py --config src/config/search_debug.yaml
+```
 
-### How It Works
+**How experiments are organized on disk**
 
-1. **Data Splitting**: The time series is divided into overlapping windows
-2. **Temporal Ordering**: Training always occurs on past data, validation on recent past, testing on future
-3. **Rolling Windows**: The validation window moves forward in time with each fold
-4. **No Look-Ahead Bias**: Strict temporal ordering prevents data leakage
+When an experiment runs it creates a directory under `src/price_prediction/experiments/` with a timestamped name. The typical layout:
 
-### Configuration Parameters
+```
+`src/price_prediction/experiments/exp_<id>_<timestamp>_<name>/`
+├── `config_snapshot.json`       # Exact config used to run the experiment
+├── `results.csv`                # Aggregated per-fold metrics
+├── `trial_000/`                 # If hyperparameter search: each trial
+│   └── `fold_000/`              # Per-fold subfolders
+│       ├── `model_best.pth`     # Best checkpoint for that fold
+│       └── `training_log.json`  # Loss/metrics per epoch
+└── ...
+```
+
+This layout makes it straightforward to compare experiments, re-run with the same config, or load models for inspection.
+
+**Benchmarks folder — quick guide**
+
+- Location: `src/price_prediction/benchmarks/`
+- Goal: run simple, interpretable baselines (linear regression, simple moving averages, etc.) over the same walk-forward splits.
+- Typical workflow:
+  - Reuse the preprocessing and walk-forward splits from `src/pipeline/` so baselines are directly comparable.
+  - Open `src/price_prediction/benchmarks/regressions.ipynb` and run the cells to reproduce baseline metrics and plots.
+
+**Walk-Forward Cross-Validation (brief)**
+
+- The pipeline uses rolling (walk-forward) windows to avoid look-ahead bias. Each fold trains on past data and tests on future intervals.
+- Common config keys (in `src/config/*.yaml`): `step`, `ratio_train`, `ratio_val`, `ratio_test`, `lags`, and `max_folds`.
+
+Example (conceptual):
 
 ```yaml
 walkforward:
-  max_folds: 20              # Maximum number of folds (null = all possible)
-  step: 251                  # Days to advance between folds (1 year ≈ 251 trading days)
-  ratio_train: 3             # Training period ratio
-  ratio_val: 1               # Validation period ratio  
-  ratio_test: 1              # Test period ratio
-  lags: 20                   # Number of lagged features to use
-  T: null                    # Total periods (auto-calculated from data if null)
+  step: 251
+  ratio_train: 3
+  ratio_val: 1
+  ratio_test: 1
+  lags: 20
 ```
 
-**How it Works:**
-The system automatically calculates `T_train`, `T_val`, and `T_test` based on the total available time periods and the specified ratios. Each fold advances by `step` periods while maintaining the same window sizes.
+The code calculates absolute window sizes from these ratios and the available time span in your data.
 
-## ⚙️ Configuration System
+**Running on a cluster (SLURM)**
 
-Experiments are configured using YAML files in `src/config/`. The configuration system supports:
-
-### Core Configuration Sections
-
-```yaml
-# Experiment metadata
-experiment:
-  name: "mlp"                        # Experiment identifier
-  random_state: 1234                 # Random seed for reproducibility
-  monitor: "val_loss"                # Metric to monitor for early stopping
-  mode: "min"                        # Optimization direction (min/max)
-  hyperparams_search: false          # Enable hyperparameter optimization
-
-# Data configuration
-data:
-  df_path: null                      # Path to data file (auto-loads if null)
-  target_col: "y"                    # Target variable column name
-  feature_cols: ["feature_0", "feature_1", ...]  # Feature column names
-  standardize: true                  # Apply standardization
-  per_asset_norm: true               # Normalize per asset independently
-
-# Model architecture
-model:
-  name: "mlp"                        # Model type (mlp, cnn1d, etc.)
-  hparams:
-    hidden_sizes: [32, 32]           # Hidden layer dimensions
-    dropout_rate: 0.2                # Dropout rate
-    activation: "relu"               # Activation function
-    l2_reg: 0.001                    # L2 regularization strength
-    output_activation: null          # Output layer activation
-
-# Training parameters
-trainer:
-  params:
-    epochs: 50                       # Maximum training epochs
-    batch_size: 128                  # Training batch size
-    lr: 1.0e-3                       # Learning rate
-    loss: "mse"                      # Loss function
-    metrics: ["mae", "mse"]          # Evaluation metrics
-```
-
-## 🧠 Model Architecture
-
-### Available Models
-
-Currently implemented:
-- **MLP**: Multi-layer perceptron with configurable layers, dropout, and regularization
-
-### Model Features
-
-- **Configurable Architecture**: Variable number of hidden layers and neurons
-- **Regularization**: Dropout and L2 regularization support
-- **Flexible Activations**: ReLU, tanh, sigmoid, and other standard activations
-- **Time Series Adaptation**: Designed for lagged feature inputs from financial data
-
-### Adding New Models
-
-1. Add model implementation to `src/models/`
-2. Update the `create_model` function to handle your new model type
-3. Configure model parameters in YAML files
-
-## 🔬 Experiment Management
-
-### Running Experiments
-
-The experiment system automatically:
-
-- **Creates unique experiment directories** with timestamps
-- **Saves model checkpoints** for each fold
-- **Logs comprehensive metrics** (RMSE, directional accuracy, etc.)
-- **Tracks hyperparameters** and configuration
-- **Enables experiment reproduction** with saved configs
-
-### Results Structure
-
-```
-src/price_prediction/experiments/exp_XXX_YYYYMMDD_HHMMSS_name/
-├── trial_000/                       # Trial directory for hyperparameter search
-│   ├── fold_000/                    # Fold-specific results
-│   │   ├── model_best.pth           # Best model checkpoint
-│   │   └── training_log.json        # Training metrics and losses
-│   └── fold_001/
-│       └── ...
-├── config_snapshot.json             # Experiment configuration
-└── results.csv                      # Aggregated results across folds
-```
-
-### Results Analysis
-
-Each experiment automatically saves:
-- **Model Checkpoints**: Best model weights per fold
-- **Training Logs**: Loss curves, metrics, and training progress
-- **Configuration**: Complete experiment setup for reproducibility
-- **Results CSV**: Performance metrics aggregated across folds
-
-## 🖥️ High-Performance Computing
-
-### SLURM Integration
-
-For cluster environments, use the provided SLURM script:
+- Use the provided `train_job.sh` script as a starting point:
 
 ```bash
-# Submit job to SLURM
 sbatch train_job.sh
-
-# Monitor job status
 squeue -u $USER
-
-# Check logs
 tail -f logs/slurm_<job_id>.out
-tail -f logs/slurm_<job_id>.err
 ```
 
-The `train_job.sh` script:
-- Requests H200 GPU resources (configurable)
-- Loads miniforge/conda environment
-- Sets up proper CUDA paths
-- Runs experiments with logging
-- Saves all outputs to `logs/` directory
+- `train_job.sh` contains environment setup and example `python src/run_experiments.py` commands. Customize resources and modules as needed.
 
-### GPU Utilization
+**Configuration and customization**
 
-The framework uses PyTorch for GPU training:
-- Automatic GPU detection via `gpu_test.py`
-- Efficient data loading with multiple workers
-- Memory-optimized batch processing
-- Support for mixed precision training
+- Configs are YAML files under `src/config/`. They contain sections like `experiment`, `data`, `model`, and `trainer`.
+- To add a new model: implement it in `src/models/`, register it in the model factory (where models are created), and add corresponding `model.hparams` to your YAML.
 
-## 📈 Performance Monitoring
+**Development: notebooks and debugging**
 
-### Logging System
+- Interactive notebooks are in `src/` and `src/data/` (e.g. `src/debug.ipynb`, `src/data/data_analysis.ipynb`). Use these for exploratory work and visual checks.
+- For quick iteration use `src/config/debug.yaml` and run smaller experiments locally.
 
-The framework includes comprehensive logging via `ExperimentLogger`:
+**Minimal troubleshooting notes**
 
-- **Structured Logging**: Automatic directory creation with timestamps
-- **Training Metrics**: Loss curves, validation performance tracking
-- **Model Checkpointing**: Automatic saving of best models per fold
-- **Configuration Snapshots**: Complete reproducibility information
+- GPU not visible: run `python src/utils/gpu_test.py` and check `nvidia-smi`.
+- SLURM failures: inspect `logs/slurm_<job_id>.err` and ensure environment modules match the cluster configuration.
+- NaNs in metrics: check data completeness, walk-forward window sizes, and `lags` in the config.
 
-### Hyperparameter Optimization
+--
 
-Built-in Optuna integration for automated hyperparameter search:
+If you want, I can also:
+- add a small `requirements.txt` derived from `pyproject.toml`,
+- add a one-line example `make` or `invoke` task to run a debug experiment,
+- or run a smoke test locally (if you want me to execute commands here).
 
-```yaml
-experiment:
-  hyperparams_search: true           # Enable search
-  n_trials: 50                       # Number of trials
-  mode: "min"                        # Optimization direction
-
-# Define search spaces in configuration
-search_spaces:
-  model.hparams.hidden_sizes: [[32], [64], [32, 32], [64, 32]]
-  trainer.params.lr: [1e-4, 1e-3, 1e-2]
-  trainer.params.batch_size: [128, 256, 512]
-```
-
-## 🔧 Advanced Usage
-
-### Custom Data Sources
-
-The framework can work with custom financial datasets:
-
-1. **Data Format**: Long-format DataFrame with:
-   - `permno`: Asset identifier  
-   - `t`: Time index (integer)
-   - Feature columns (as specified in config)
-   - Target column (`y` by default)
-
-2. **Loading Custom Data:**
-   ```bash
-   python src/run_experiments.py --config default.yaml --data path/to/your/data.parquet
-   ```
-
-### Debugging and Development
-
-1. **Debug Configuration**: Use smaller datasets and fewer epochs
-   ```bash
-   python src/run_experiments.py --config debug.yaml
-   ```
-
-2. **Jupyter Notebooks**: Interactive analysis available:
-   - `src/debug.ipynb`: Main debugging notebook
-   - `src/data/data_analysis.ipynb`: Data exploration
-   - `src/price_prediction/visuals.ipynb`: Results visualization
-
-### Extending the Framework
-
-1. **Add New Models**: Extend `src/models/` with new architectures
-2. **Custom Metrics**: Modify `src/training_routine/metrics.py`
-3. **New Preprocessing**: Extend `src/pipeline/preprocessing.py`
-
-## 🧪 Development and Testing
-
-### Interactive Development
-
-```bash
-# Main debugging notebook
-jupyter notebook src/debug.ipynb
-
-# Data exploration and analysis  
-jupyter notebook src/data/data_analysis.ipynb
-jupyter notebook src/data/get_data.ipynb
-
-# Results visualization
-jupyter notebook src/price_prediction/visuals.ipynb
-
-# Benchmark comparisons
-jupyter notebook src/price_prediction/benchmarks/regressions.ipynb
-```
-
-### Code Structure
-
-- **Configuration-Driven**: YAML-based experiment setup with typed configurations
-- **Modular Pipeline**: Separate components for data, models, training, and evaluation  
-- **Walk-Forward Validation**: Proper temporal validation for financial time series
-- **Experiment Tracking**: Automatic logging and reproducibility
-
-## 📚 Key Concepts
-
-### Walk-Forward Validation vs Traditional CV
-
-Traditional cross-validation randomly splits data, which can cause **look-ahead bias** in time series. Walk-forward validation:
-
-- ✅ Respects temporal ordering
-- ✅ Simulates real-world deployment
-- ✅ Provides realistic performance estimates
-- ✅ Prevents data leakage
-
-### Financial Time Series Considerations
-
-- **Stationarity**: Markets change over time
-- **Regime Changes**: Model performance varies across market conditions  
-- **Transaction Costs**: Real-world implementation considerations
-- **Risk Management**: Drawdown and volatility controls
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-1. **GPU Not Detected**:
-   ```bash
-   python src/utils/gpu_test.py
-   # Should show CUDA availability and GPU information
-   ```
-
-2. **NaN Metrics in Results**:
-   - Check for empty test sets in walk-forward validation
-   - Verify data has sufficient non-NaN values for each window
-   - Review `T`, `step`, and `lags` parameters in walk-forward config
-
-3. **High CPU Usage During Training**:
-   - Increase `batch_size` for better GPU utilization
-   - Use multiple workers in data loading
-   - Check if data preprocessing is done on CPU vs GPU
-
-4. **SLURM Job Failures**:
-   - Check logs: `cat logs/slurm_<job_id>.err`
-   - Verify conda environment and module loading
-   - Ensure sufficient time and memory allocation
-
-5. **Configuration Errors**:
-   - Validate YAML syntax
-   - Check that all required fields are present
-   - Use `debug.yaml` for testing configuration changes
-
-### Performance Tips
-
-- **Start Small**: Use `debug.yaml` for initial testing
-- **Monitor Resources**: Check GPU utilization with `nvidia-smi`
-- **Batch Size**: Larger batches (512-2048) often improve GPU efficiency
-- **Data Loading**: Use sufficient workers to avoid CPU bottlenecks
-
-### Getting Help
-
-- Check experiment logs for detailed error messages
-- Use the debugging notebooks for interactive troubleshooting
-- Review configuration examples in `src/config/`
-
----
-
-**Happy Training! 🚀**
+Happy experimenting! 🚀

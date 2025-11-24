@@ -1,6 +1,7 @@
 import os, time
 import numpy as np
 from typing import Tuple, Dict, Any, Callable, Optional
+import copy
 
 import torch
 torch.set_float32_matmul_precision("high")
@@ -99,6 +100,19 @@ class Trainer:
                 lr=lr,
                 fused=True
             )
+            
+        elif self.optimizer_type == "sgd":
+            # Try to get momentum from config, default to 0.0 if not present
+            momentum = float(self.cfg.trainer.hparams.get("momentum", 0.0))
+            
+            # SGD added here
+            self.optimizer = optim.SGD(
+                [{"params": decay, "weight_decay": weight_decay},
+                 {"params": no_decay, "weight_decay": 0.0}],
+                lr=lr,
+                momentum=momentum 
+            )
+        
         elif self.optimizer_type == "muon":
             # Muon ONLY on 2D params (hidden layer matrices)
             if len(decay_2d) == 0 and len(no_decay_2d) == 0:
@@ -187,8 +201,6 @@ class Trainer:
         use_amp_eval = (name not in ("lstm", "gru", "rnn"))  # if you want to keep LSTM eval in fp32, set False
         amp_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=use_amp_eval)
 
-        self.console_logger.debug(f'X shape: {X.shape}')
-        self.console_logger.debug(f'y shape: {y.shape}')
 
         for i in range(0, len(X), eval_bs):
             xb = torch.as_tensor(X[i:i+eval_bs], dtype=torch.float32, device=self.device)
@@ -312,6 +324,9 @@ class Trainer:
         min_delta = float(self.cfg.trainer.hparams.get("min_delta", 1e-4))
         stalled = 0
         best_state = None
+        
+        # Saving 
+        saved_best_model_state = None
 
         t0 = time.time()
         if Xv_tensor is not None:
@@ -354,7 +369,7 @@ class Trainer:
 
         opt_params = sum(
             p.numel()
-            for g in param_groups
+        for g in param_groups
             for p in g["params"]
             if p.requires_grad
         )
@@ -368,8 +383,11 @@ class Trainer:
             epoch_loss = 0.0
             seen = 0
 
+            # debug sub-epoch trajectory
+            batch_losses = []
+        
             # manual batching
-            for xb, yb in zip(xb_chunks, yb_chunks):
+            for batch_idx, (xb, yb) in enumerate(zip(xb_chunks, yb_chunks)):
                 # --- zero grad ---
                 # set gradient to zero otherwise they accumulate
                 if self.optimizer_type == "muon":
@@ -399,6 +417,12 @@ class Trainer:
                 epoch_loss += loss.detach() * bs
                 seen += bs
                 
+                # per batch logging
+                if batch_idx % 100 == 0:
+                    if epoch == 1:
+                        batch_loss = loss.detach().item()
+                        batch_losses.append(batch_loss)
+
             # compute loss
             tr_loss_avg = (epoch_loss / max(seen, 1)).item()
 
@@ -411,9 +435,13 @@ class Trainer:
                     with torch.inference_mode():
                         eval_out = self._evaluate_fold(Xv_tensor, yv_tensor)
                         # average train loss once per epoch (one CPU sync)
+                    
                     vloss = float(eval_out.get("loss", np.nan))
 
-                    history.append({"tr_loss":tr_loss_avg, "val_loss":vloss})
+                    # create history and print
+                    history.append({"tr_loss":tr_loss_avg, 
+                                    "val_loss":vloss,
+                                    "batch_losses":batch_losses})
                     self.console_logger.info(
                         f"Epoch {epoch:03d} | loss={epoch_loss/max(seen,1):.12f} "
                         f"| val_loss={vloss:.12f} | time: {time.time()-start_epoch_time:.3f}s"
@@ -439,7 +467,13 @@ class Trainer:
                                                         optimizer=optimizer_for_es)
                         
                         best_val, stalled, best_state, should_stop = es_result
-                        
+
+                        if best_state is not None:
+                            # If early_stopping_step returned weights, it means we found a new best.
+                            # We save them to our persistent variable.
+                            if best_val == vloss:
+                                saved_best_model_state = copy.deepcopy(self.model.state_dict())
+                                self.console_logger.debug("Inside best_state")
                         if should_stop:
                             self.console_logger.info(
                                 f"Early stopping at epoch {epoch} "
@@ -461,7 +495,8 @@ class Trainer:
                             raise optuna.TrialPruned()                    
             else:
                 # merged mode: no val, just log train loss
-                history.append({"tr_loss": tr_loss_avg})
+                history.append({"tr_loss": tr_loss_avg,
+                                "batch_losses":batch_losses})
                 self.console_logger.info(
                     f"Epoch {epoch:03d} | loss={tr_loss_avg:.12f} "
                     f"| time: {time.time()-start_epoch_time:.3f}s"
@@ -478,7 +513,6 @@ class Trainer:
                             param_norm = p.grad.data.norm(2)
                             total_norm += param_norm.item()**2
                     total_norm = total_norm ** 0.5
-                    self.console_logger.debug(f'Grad L2 norm: {total_norm}')
                     grad_history.append({"epoch": epoch, **grad_means})
 
             effective_epochs += 1
@@ -509,15 +543,21 @@ class Trainer:
             # Adam / AdamW uses the old path
             optimizer_state = self.optimizer.state_dict()
 
+        # Model state w/ best val 
+        if saved_best_model_state is None: 
+            self.console_logger.warning(f"saved_best_model_state is None!") 
+            final_state = self.model.state_dict()
+        else:
+            final_state = saved_best_model_state
+
         # Now save everything
         torch.save(
             {
                 "epoch": best_epoch,
-                "model_state": self.model.state_dict(),
+                "model_state": final_state,
                 "optimizer_state": optimizer_state,   
                 "monitor": best_val,
-                "history": history,
-                "grad_history": grad_history,
+                "history": history
             },
             os.path.join(fold_dir, "model_best.pt"),
         )
@@ -561,9 +601,9 @@ class Trainer:
             #f"tr_mae={trmap.get('tr_mae', np.nan):.6f} | "
             #f"val_mae={vmap.get('val_mae', np.nan):.6f} | "
             #f"test_mae={temap.get('test_mae', np.nan):.6f} | "
-            f"tr_diracc={trmap.get('tr_directional_accuracy_pct', np.nan):.2f}% | "
-            f"val_diracc={vmap.get('val_directional_accuracy_pct', np.nan):.2f}% | "
-            f"test_diracc={temap.get('test_directional_accuracy_pct', np.nan):.2f}% | "
+            #f"tr_diracc={trmap.get('tr_directional_accuracy_pct', np.nan):.2f}% | "
+            #f"val_diracc={vmap.get('val_directional_accuracy_pct', np.nan):.2f}% | "
+            #f"test_diracc={temap.get('test_directional_accuracy_pct', np.nan):.2f}% | "
             f"best_epoch={best_epoch_from_hist}"
         )
         print()

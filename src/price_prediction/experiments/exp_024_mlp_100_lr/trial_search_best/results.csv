@@ -1,0 +1,2 @@
+trial,fold,tr_loss,val_loss,test_loss,tr_mae,val_mae,test_mae,tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,tr_undershooting_pct,val_undershooting_pct,test_undershooting_pct,seconds,model_path
+-1,0,1.000000818960604,nan,1.1874355460481716,0.7459717989944886,nan,0.8268902872853895,50.29791750446685,nan,50.74443539630836,6.181667088534442e-05,nan,0.00017453312679688394,58.929245710372925,/orcd/home/002/corte911/code/finNN_code/src/price_prediction/experiments/exp_024_mlp_100_lr/trial_search_best/fold_000/model_best.pt

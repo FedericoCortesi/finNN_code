@@ -253,7 +253,7 @@ class Trainer:
         report_cb: Optional[Callable] = None  
     ):
         # Unpack numpy arrays
-        Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged = data
+        Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged, id_tr, id_v, id_te, window_train, window_val, window_test = data
 
         # Paths
         fold_dir = self.logger.path(f"fold_{fold:03d}/")

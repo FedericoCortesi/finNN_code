@@ -23,11 +23,11 @@ class WFCVGenerator:
         id_col: str = "permno",
         df_long = None,   # None => call preprocess(), can be str for path or df
         time_col: str = "t",
+        keep_id_col: bool = False
     ):
         self.console_logger = setup_logger("WFCVGenerator", "INFO")
         self.config = config
         self.console_logger.debug(self.config.summary())
-
 
         self.scale = self.config.scale 
         self.scale_type = self.config.scale_type 
@@ -43,6 +43,7 @@ class WFCVGenerator:
         self.console_logger.debug(f'self.scale: {self.scale}')
 
         self.id_col, self.time_col = id_col, time_col
+        self.keep_id_col = keep_id_col
         self.target_col = self.config.target_col
         
         self.df = self._load_df(df_long)  # validated & trimmed
@@ -210,7 +211,13 @@ class WFCVGenerator:
             #    First L columns → features, last col → y
             df_block = pd.DataFrame(block, columns=out_cols)
 
-            # add window debugrmatio
+            # optionally keep id col (permno) for each row
+            if self.keep_id_col:
+                keep_ids = W.index.to_numpy()[ok_rows]
+                # insert id column as first column
+                df_block.insert(0, self.id_col, keep_ids)
+
+            # add window information
             df_block["window"] = [(a,b)]*len(df_block)
 
 
@@ -237,6 +244,8 @@ class WFCVGenerator:
             feature_cols  = [f"feature_{i}" for i in range(self.config.lags)]
             lookback_cols = [f"lookback_{i}" for i in range(self.config.lookback)]
             final_cols    = feature_cols + lookback_cols + ["y", "window"]
+            if self.keep_id_col:
+                final_cols = final_cols + self.id_col
 
             # reorder DataFrame
             df_base = df_base[final_cols]
@@ -271,6 +280,9 @@ class WFCVGenerator:
         df_train = base[base["window"].isin(tw)].drop(columns="window")
         df_val   = base[base["window"].isin(vw)].drop(columns="window")
         df_test  = base[base["window"].isin(tew)].drop(columns="window")
+        window_train = base[base["window"].isin(tw)]["window"]
+        window_val   = base[base["window"].isin(vw)]["window"]
+        window_test  = base[base["window"].isin(tew)]["window"]
 
         # optional: warn on empties
         if df_train.empty or df_val.empty or df_test.empty:
@@ -279,7 +291,7 @@ class WFCVGenerator:
                 f"train={len(df_train)}, val={len(df_val)}, test={len(df_test)}"
             )
 
-        return df_train, df_val, df_test
+        return df_train, df_val, df_test, window_train, window_val, window_test
 
     def _normalize_window_col(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -377,11 +389,17 @@ class WFCVGenerator:
         self.console_logger.debug(f"self.folds_count: {self.folds_count}")
 
         for fold in range(self.folds_count):
-            df_train, df_val, df_test = self.obtain_datasets_fold(fold, df_master=base)
+            df_train, df_val, df_test, window_train, window_val, window_test = self.obtain_datasets_fold(fold, df_master=base)
 
             if df_train.empty or df_val.empty or df_test.empty:
                 self.console_logger.warning(f"Skipping fold {fold} due to empty split.")
                 continue
+
+            # Extract id_col before converting to numpy
+            id_tr = df_train[self.id_col].to_numpy() if self.keep_id_col else None
+            id_v = df_val[self.id_col].to_numpy() if self.keep_id_col else None
+            id_te = df_test[self.id_col].to_numpy() if self.keep_id_col else None
+            
 
             # build arrays in consistent column order
             Xtr = df_train[feat_cols].to_numpy(dtype=np.float64) 
@@ -460,7 +478,6 @@ class WFCVGenerator:
             self.console_logger.debug(f'Merged arrays shapes: Xtr_val={Xtr_val.shape}, ytr_val={ytr_val.shape}')
             self.console_logger.debug(f'Merged test shapes: Xte_merged={Xte_merged.shape}, yte_merged={yte_merged.shape}')
 
-            yield Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged
-
+            yield Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged, id_tr, id_v, id_te, window_train, window_val, window_test
 
 

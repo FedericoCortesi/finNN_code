@@ -199,10 +199,10 @@ def _dedupe_on_fold(df: pd.DataFrame, name: str) -> pd.DataFrame:
 # Main
 # =========================
 def main():
-    names = ["exp_022_cnn_40_lr"]
+    names = ["exp_043_mlp_100_sgd", "exp_044_mlp_100_sgd_test"]
     for NAME in names:
         TRIAL = "trial_search_best"
-        BASE  = Path(PRICE_EXPERIMENTS_DIR) / NAME / TRIAL
+        BASE  = Path(VOL_EXPERIMENTS_DIR) / NAME / TRIAL
         print(f'\n\nAnalyzing {BASE}\n\n')
 
         cfg = load_cfg(BASE)
@@ -211,7 +211,7 @@ def main():
         wf = WFCVGenerator(config=cfg.walkforward)
         var_rows, ols_rows, lasso_rows, nn_calib_rows = [], [], [], []
 
-        for fold_idx, (Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged) in tqdm(
+        for fold_idx, (Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged, id_tr, id_v, id_te, windows_tr, windows_te, windows_v) in tqdm(
             enumerate(wf.folds()), desc="Streaming folds"
         ):
             if MERGE_TRAIN_VAL:

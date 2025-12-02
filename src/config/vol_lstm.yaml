@@ -1,5 +1,5 @@
 experiment:
-  name: "lstm_100_sgd"
+  name: "lstm_100_muon_test"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
@@ -32,17 +32,18 @@ walkforward:
 trainer:
   hparams:
     epochs: 50
-    batch_size: 512 # P. said 256-512 to "kill some noise"
     torch_patience: 10 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
-    optuna_patience: 10 
+    optuna_patience:  
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    optimizer_type: sgd
+    optimizer_type: muon
   search:
-    weight_decay: {type: float, low: 1.0e-5, high: 1, log: False}
+    batch_size: {type: cat, choices: [128, 256, 512, 1024]}
+    weight_decay: {type: float, low: 0, high: 1, log: False}
     lr: {type: float, low: 1.0e-5, high: 1.0e-1, log: False}
+
 
 model:
   name: "lstm"

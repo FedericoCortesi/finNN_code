@@ -80,7 +80,7 @@ class CNN1D(nn.Module):
 
     def _get_activation(self, name: str) -> nn.Module:
         name = (name or "relu").lower()
-        if name == "relu":        return nn.ReLU(inplace=True)
+        if name == "relu":        return nn.ReLU(inplace=False) # doesnt save memory but ok for explanation
         elif name == "gelu":      return nn.GELU()
         elif name == "elu":       return nn.ELU(inplace=True)
         elif name == "silu":      return nn.SiLU(inplace=True)

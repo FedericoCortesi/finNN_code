@@ -95,7 +95,7 @@ class LSTMRegressor(nn.Module):
 
     def _get_activation(self, name: str):
         n = name.lower()
-        if n == "relu": return nn.ReLU(inplace=True)
+        if n == "relu": return nn.ReLU(inplace=False) # doens't save memory but ok for explainer
         if n == "gelu": return nn.GELU()
         if n == "elu": return nn.ELU(inplace=True)
         if n == "silu": return nn.SiLU(inplace=True)

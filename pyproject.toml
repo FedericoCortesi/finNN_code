@@ -8,6 +8,13 @@ dependencies = [
   "numpy",
   "pandas",
   "pyarrow",
+  "torch",
+  "scikit-learn",
+  "tensorflow",
+  "optuna",
+  "tqdm",
+  "statsmodels",
+  "pyyaml",
 ]
 
 [build-system]

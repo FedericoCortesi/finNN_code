@@ -80,3 +80,4 @@ logs/
 *.pth
 *.ckpt
 *.json
+#test

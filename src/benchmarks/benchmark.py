@@ -199,7 +199,18 @@ def _dedupe_on_fold(df: pd.DataFrame, name: str) -> pd.DataFrame:
 # Main
 # =========================
 def main():
-    names = ["exp_038_mlp_100_adam_lr"]
+    names = [
+ 'exp_034_cnn_100_muon_lr',
+ 'exp_037_cnn_100_adam_lr',
+ 'exp_041_cnn_100_sgd',
+ 'exp_036_lstm_100_muon_lr',
+ 'exp_039_lstm_100_adam_lr',
+ 'exp_042_lstm_100_sgd',
+ 'exp_035_mlp_100_muon_lr',
+ 'exp_038_mlp_100_adam_lr',
+ 'exp_043_mlp_100_sgd'
+]
+
     for NAME in names:
         TRIAL = "trial_search_best"
         BASE  = Path(VOL_EXPERIMENTS_DIR) / NAME / TRIAL

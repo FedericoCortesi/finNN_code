@@ -10,9 +10,11 @@ import pandas as pd
 import statsmodels.api as sm
 import torch
 
+from utils.logging_utils import ExperimentLogger
 from pipeline.walkforward import WFCVGenerator
 from config.config_types import AppConfig
 from utils.paths import DATA_DIR, PRICE_EXPERIMENTS_DIR, VOL_EXPERIMENTS_DIR
+from utils.inference_utils import format_legend_name
 from models import create_model
 from sklearn.linear_model import Lasso
 
@@ -24,6 +26,7 @@ from sklearn.linear_model import Lasso
 USE_NMSE = True
 MERGE_TRAIN_VAL = True
 ACCURACY: int = 4
+DEVICE = 'cuda'
 
 
 # =========================
@@ -106,7 +109,7 @@ def _make_input_shape_for_eval(cfg, X_sample: torch.Tensor | np.ndarray, state_d
         raise ValueError(f"Unknown model name: {cfg.model.name}")
 
 @torch.inference_mode()
-def _predict_batched(model, X, device="cuda", bs=8192):
+def _predict_batched(model, X, device=DEVICE, bs=8192):
     preds = []
     for i in range(0, len(X), bs):
         xb = torch.as_tensor(X[i:i+bs], dtype=torch.float32, device=device)
@@ -114,38 +117,109 @@ def _predict_batched(model, X, device="cuda", bs=8192):
         preds.append(pb)
     return torch.cat(preds, dim=0).numpy()
 
-def load_and_predict_nn(cfg, base_path: Path, fold_idx: int, X_test: np.ndarray, device="cuda"):
-    """Load NN model for given fold and make predictions on test set."""
-    try:
-        # Load checkpoint
-        ckpt_path = base_path / f"fold_{fold_idx:03d}" / "model_best.pt"
-        if not ckpt_path.exists():
-            return None
-        
-        checkpoint = torch.load(ckpt_path, map_location=device)
-        state_dict = {k.replace("_orig_mod.", ""): v for k, v in checkpoint["model_state"].items()}
-        
-        # Infer shapes
-        input_shape = _make_input_shape_for_eval(cfg, X_test, state_dict)
-        output_shape = cfg.walkforward.lookback + 1 if cfg.walkforward.lookback is not None else 1
-        
-        # Create and load model
-        model = create_model(cfg.model, input_shape, output_shape)
-        model.load_state_dict(state_dict, strict=True)
-        model.to(device).eval()
-        
-        # Make predictions
-        yhat = _predict_batched(model, X_test, device=device, bs=8192)
-        
-        # Cleanup
-        del model, checkpoint
-        torch.cuda.empty_cache()
-        
-        return yhat
-        
-    except Exception as e:
-        print(f"Error loading/predicting fold {fold_idx}: {e}")
+def load_and_predict_nn(
+    cfg,
+    base_path: Path,
+    fold_idx: int,
+    X_test: np.ndarray,
+    device=DEVICE,
+    weights=None,
+    normalize_weights: bool = True,
+):
+    """
+    Load and predict with either:
+      - a single model (cfg, base_path scalars), or
+      - an ensemble (cfg, base_path lists of same length)
+
+    Returns:
+      yhat: np.ndarray of shape (N, D) or None
+    """
+
+    # ---- detect ensemble vs single ----
+    is_ensemble = isinstance(cfg, (list, tuple))
+
+    if not is_ensemble:
+        cfgs = [cfg]
+        base_paths = [base_path]
+    else:
+        cfgs = list(cfg)
+        base_paths = list(base_path)
+        assert len(cfgs) == len(base_paths), "cfg and base_path must have same length"
+
+    K = len(cfgs)
+
+    if weights is None:
+        weights = np.ones(K, dtype=np.float64)
+    else:
+        weights = np.asarray(weights, dtype=np.float64)
+        assert len(weights) == K, "weights must match number of models"
+
+    if normalize_weights:
+        weights = weights / weights.sum()
+
+    preds = []
+
+    # ---- loop over members ----
+    for k, (cfg_k, base_k) in enumerate(zip(cfgs, base_paths)):
+        try:
+            ckpt_path = base_k / f"fold_{fold_idx:03d}" / "model_best.pt"
+            if not ckpt_path.exists():
+                continue
+
+            checkpoint = torch.load(ckpt_path, map_location=device)
+            state_dict = {
+                k.replace("_orig_mod.", ""): v
+                for k, v in checkpoint["model_state"].items()
+            }
+
+            input_shape = _make_input_shape_for_eval(cfg_k, X_test, state_dict)
+            output_shape = (
+                cfg_k.walkforward.lookback + 1
+                if cfg_k.walkforward.lookback is not None
+                else 1
+            )
+
+            model = create_model(cfg_k.model, input_shape, output_shape)
+            model.load_state_dict(state_dict, strict=True)
+            model.to(device).eval()
+
+            yhat = _predict_batched(model, X_test, device=device, bs=8192)
+
+            # normalize shape: (N,) -> (N,1)
+            yhat = np.asarray(yhat)
+            if yhat.ndim == 1:
+                yhat = yhat[:, None]
+
+            preds.append((weights[k], yhat))
+
+            # cleanup per model
+            del model, checkpoint
+            torch.cuda.empty_cache()
+
+        except Exception as e:
+            print(f"[WARN] Error loading/predicting member {k}: {e}")
+            continue
+
+    if len(preds) == 0:
         return None
+
+    # ---- sanity check shapes ----
+    shape0 = preds[0][1].shape
+    for i, (_, p) in enumerate(preds[1:], start=1):
+        if p.shape != shape0:
+            raise ValueError(f"Member {i} has shape {p.shape}, expected {shape0}")
+
+    # ---- weighted mean ----
+    W = np.array([w for w, _ in preds], dtype=np.float64)
+    P = np.stack([p for _, p in preds], axis=0)  # (K, N, D)
+
+    if normalize_weights:
+        W = W / W.sum()
+
+    yhat = np.tensordot(W, P, axes=(0, 0))  # (N, D)
+
+    return yhat
+
 
 def print_table(df: pd.DataFrame, title: str):
     cols = [
@@ -200,26 +274,58 @@ def _dedupe_on_fold(df: pd.DataFrame, name: str) -> pd.DataFrame:
 # =========================
 def main():
     names = [
- 'exp_034_cnn_100_muon_lr',
- 'exp_037_cnn_100_adam_lr',
- 'exp_041_cnn_100_sgd',
+[ 'exp_034_cnn_100_muon_lr',
  'exp_036_lstm_100_muon_lr',
- 'exp_039_lstm_100_adam_lr',
- 'exp_042_lstm_100_sgd',
- 'exp_035_mlp_100_muon_lr',
- 'exp_038_mlp_100_adam_lr',
- 'exp_043_mlp_100_sgd'
-]
+ 'exp_035_mlp_100_muon_lr'
+]]
 
-    for NAME in names:
+    for ITEM in names:
         TRIAL = "trial_search_best"
-        BASE  = Path(VOL_EXPERIMENTS_DIR) / NAME / TRIAL
-        print(f'\n\nAnalyzing {BASE}\n\n')
 
-        cfg = load_cfg(BASE)
+        # Ensemble
+        if isinstance(ITEM, list):
+            print('Analyzing ensemble')
+            # Lists to convert to store variables and pass to predict ensemble function 
+            cfg_ensemble_list = []
+            base_list = []
+            for member in ITEM:
+                # define varibales per model
+                base_member  = Path(VOL_EXPERIMENTS_DIR) / member / TRIAL
+                cfg_member = load_cfg(base_member)
+                
+                cfg_ensemble_list.append(cfg_member)
+                base_list.append(base_member)
+
+            # change names to variables
+            # Very ugly but works
+            base = base_list
+            cfg = cfg_ensemble_list
+            print(f'\n\nAnalyzing {ITEM}\n\n')
+
+            # Instantiate with the last one, assuming all have the same structure
+            cfg_loading = cfg[-1]
+            print(f'cfg: {cfg_loading}')
+
+            # change names
+            clean_names = [format_legend_name(member) for member in ITEM]
+            concatenated = "_".join(clean_names)
+            concatenated = concatenated.replace(" ", "").lower()
+            cfg_loading.experiment.name = f'ensemble_{concatenated}'
+            
+            wf = WFCVGenerator(config=cfg_loading.walkforward)
+            logger = ExperimentLogger(cfg_loading) 
+            out_dir_ensemble = logger.begin_trial()
+
+            
+            
+        else:
+            base  = Path(VOL_EXPERIMENTS_DIR) / ITEM / TRIAL
+            print(f'\n\nAnalyzing {base}\n\n')
+            cfg = load_cfg(base)
+            print(f'cfg: {cfg}')
+            wf = WFCVGenerator(config=cfg.walkforward)
 
         # 1) Stream folds once: compute variances + OLS metrics + NN calibration on the fly
-        wf = WFCVGenerator(config=cfg.walkforward)
         var_rows, ols_rows, lasso_rows, nn_calib_rows = [], [], [], []
 
         for fold_idx, (Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged, id_tr, id_v, id_te, windows_tr, windows_te, windows_v) in tqdm(
@@ -300,6 +406,7 @@ def main():
             beta_ols_test  = float(cal_ols_te.params[1])
             r2_ols_test    = float(cal_ols_te.rsquared)
 
+            print('\nOLS analysis complete')
             ols_rows.append({
                 "fold": fold_idx,
                 "OLS_train": mse_tr, "OLS_val": mse_val, "OLS_test": mse_te,
@@ -376,6 +483,7 @@ def main():
             beta_lasso_test  = float(cal_lasso_te.params[1])
             r2_lasso_test    = float(cal_lasso_te.rsquared)
 
+            print('\nLASSO analysis complete')
             lasso_rows.append({
                 "fold": fold_idx,
                 "LASSO_train": mse_tr_lasso, "LASSO_val": mse_val_lasso, "LASSO_test": mse_te_lasso,
@@ -391,7 +499,7 @@ def main():
 
 
             # ---- NN calibration and metrics on TEST: load model and compute everything ----
-            yhat_te_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_te, device="cuda")
+            yhat_te_nn = load_and_predict_nn(cfg, base, fold_idx, X_te, device=DEVICE)
             
             if yhat_te_nn is not None:
                 # Shape safety for NN predictions
@@ -417,7 +525,7 @@ def main():
                 # Compute NN metrics on train set if needed
                 if MERGE_TRAIN_VAL:
                     # For merged mode, compute train metrics on merged train+val data
-                    yhat_tr_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_tr, device="cuda")
+                    yhat_tr_nn = load_and_predict_nn(cfg, base, fold_idx, X_tr, device=DEVICE)
                     if yhat_tr_nn is not None:
                         if y_tr.ndim == 1 and yhat_tr_nn.ndim > 1:
                             yhat_tr_nn = yhat_tr_nn.ravel()
@@ -444,8 +552,8 @@ def main():
                         mse_tr_nn = da_tr_nn = mse_val_nn = da_val_nn = np.nan
                 else:
                     # For separate mode, compute both train and val metrics
-                    yhat_tr_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_tr, device="cuda")
-                    yhat_val_nn = load_and_predict_nn(cfg, BASE, fold_idx, X_val, device="cuda")
+                    yhat_tr_nn = load_and_predict_nn(cfg, base, fold_idx, X_tr, device=DEVICE)
+                    yhat_val_nn = load_and_predict_nn(cfg, base, fold_idx, X_val, device=DEVICE)
                     
                     if yhat_tr_nn is not None:
                         if y_tr.ndim == 1 and yhat_tr_nn.ndim > 1:
@@ -488,6 +596,7 @@ def main():
                 da_tr_nn = da_val_nn = da_te_nn = np.nan
                 us_te_nn = us_val_nn = np.nan
             
+            print("\nNN analysis complete")
             nn_calib_rows.append({
                 "fold": fold_idx,
                 "NN_alpha_train": alpha_nn_train,
@@ -724,7 +833,12 @@ def main():
         which = "NMSE" if USE_NMSE else "MSE"
         print_table(avg_df, title=f"Average across folds ({which})")
 
-        out_dir = BASE / "analysis"
+
+        if not isinstance(base, (list, tuple)):
+            out_dir = base / "analysis" 
+        else:
+            out_dir = Path(out_dir_ensemble) / 'analysis'
+
         out_dir.mkdir(exist_ok=True)
         per_fold.to_csv(out_dir / "per_fold_metrics.csv", index=False)
         avg_df.to_csv(out_dir / "fold_avg_metrics.csv", index=False)

@@ -7,11 +7,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SRC_DIR = REPO_ROOT / "src" 
 PRICE_EXPERIMENTS_DIR = REPO_ROOT / "src" / "price_prediction" / "experiments"
 VOL_EXPERIMENTS_DIR = REPO_ROOT / "src" / "volatility" / "experiments"
-SMOKE_DIR = REPO_ROOT / "src" / "price_prediction" / "experiments" / "smoke"
 DATA_DIR = REPO_ROOT / "src" / "data"
 PIPELINE_DIR = REPO_ROOT / "src" / "pipeline"
 CONFIG_DIR = REPO_ROOT / "src" / "config"
-
+BENCHMARKS_DIR = REPO_ROOT / 'src' / 'benchmarks'
 
 # Example specific datasets
 SP500_PATH = DATA_DIR / "sp500_daily_data.parquet"

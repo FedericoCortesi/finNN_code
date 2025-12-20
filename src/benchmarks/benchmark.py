@@ -441,9 +441,11 @@ def main():
 
     comb2 = list(itertools.combinations(all_names, 2))
     comb3 = list(itertools.combinations(all_names, 3))
-    names = comb2
+    names = comb3
 
-    for ITEM in tqdm(names):
+    for i, ITEM in tqdm(enumerate(names)):
+        if i < 52:
+            continue
         TRIAL = "trial_search_best"
 
         # Ensemble
@@ -468,7 +470,6 @@ def main():
 
             # Instantiate with the last one, assuming all have the same structure
             cfg_loading = cfg[-1]
-            print(f'cfg: {cfg_loading}')
 
             # change names
             clean_names = [format_legend_name(member) for member in ITEM]
@@ -486,7 +487,6 @@ def main():
             base  = Path(VOL_EXPERIMENTS_DIR) / ITEM / TRIAL
             print(f'\n\nAnalyzing {base}\n\n')
             cfg = load_cfg(base)
-            print(f'cfg: {cfg}')
             wf = WFCVGenerator(config=cfg.walkforward)
 
         # 1) Stream folds once: compute variances + OLS metrics + NN calibration on the fly

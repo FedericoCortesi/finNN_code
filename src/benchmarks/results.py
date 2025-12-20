@@ -45,6 +45,7 @@ def main():
     
     # delete duplicates
     df_out = df_out.drop_duplicates()
+    df_out = df_out.sort_values(by='Test MSE', ascending=True)
 
     print('Shape: ', df_out.shape)
 

@@ -2,6 +2,7 @@ import os, time
 import numpy as np
 from typing import Tuple, Dict, Any, Callable, Optional
 import copy
+from pathlib import Path
 
 import torch
 torch.set_float32_matmul_precision("high")
@@ -23,6 +24,7 @@ from .metrics import undershooting_pct as _undershooting_pct
 from .metrics import QLikeLoss
 from .training_utils import early_stopping_step
 
+from utils.paths import DATA_DIR, PRICE_EXPERIMENTS_DIR, VOL_EXPERIMENTS_DIR
 
 class Trainer:
     def __init__(self, 
@@ -47,6 +49,37 @@ class Trainer:
 
     # Build optimizer/loss 
     def compile(self, model: torch.nn.Module):
+        # check if there's an initialization checkpoint
+        
+        # locate checkpoint relative dir from cfg
+        rel_dir = self.cfg.trainer.hparams.get('initialization', None)
+
+        if rel_dir is not None:
+            
+            # define path and load
+            exp_type = self.cfg.experiment.type
+            base = VOL_EXPERIMENTS_DIR if exp_type == 'volatility' else PRICE_EXPERIMENTS_DIR
+            ckpt_path = Path(base) / rel_dir / 'model_best.pt'
+            ckpt = torch.load(ckpt_path, map_location=self.device)
+
+            # load state dict with weihts only
+            state_dict = ckpt.get('model_state', ckpt)
+
+            # Strip the '_orig_mod.' prefix added by torch.compile
+            # Logic: If key starts with prefix, remove it; else keep key as is.
+            new_state_dict = {
+                (k[10:] if k.startswith("_orig_mod.") else k): v 
+                for k, v in state_dict.items()
+            }
+
+            # Load into model
+            # 'strict=False' is useful if you modified the architecture slightly
+            # (e.g., removing the last layer for a different task)
+            model.load_state_dict(new_state_dict, strict=True)
+            self.console_logger.info(f"Initialized model weights from {ckpt_path}")
+
+
+        
         self.model = model.to(self.device)
 
         lr = float(self.cfg.trainer.hparams["lr"])

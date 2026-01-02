@@ -195,9 +195,8 @@ def main():
             if fold == 0:
                 console_logger.debug(f"model: {model}")
 
-            merge_tr_val = True
-            if merge_tr_val:
-                console_logger.warning(f"merge_tr_val is {merge_tr_val}")
+            merge_tr_val = False
+            console_logger.warning(f"merge_tr_val is {merge_tr_val}")
 
             trainer.fit_eval_fold(model, 
                                   data, 

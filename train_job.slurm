@@ -15,7 +15,6 @@ mkdir -p /orcd/home/002/corte911/code/finNN_code/logs
 source ~/.bashrc
 
 # Load Anaconda Module
-module load miniforge
 
 # Activate the specific conda environment
 conda activate torch_h200_py312
@@ -24,4 +23,4 @@ conda activate torch_h200_py312
 cd /orcd/home/002/corte911/code/finNN_code
 
 # === run your python script ===
-python -u src/run_experiments.py --config vol_lstm.yaml
+python -u src/run_experiments.py --config vol_cnn.yaml

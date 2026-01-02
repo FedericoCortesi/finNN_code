@@ -14,8 +14,6 @@ mkdir -p /orcd/home/002/corte911/code/finNN_code/logs
 # === setup environment ===
 source ~/.bashrc
 
-# Load Anaconda Module
-module load miniforge
 
 # Activate the specific conda environment
 conda activate torch_h200_py312

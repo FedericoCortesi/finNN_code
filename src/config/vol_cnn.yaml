@@ -1,12 +1,12 @@
 experiment:
-  name: "cnn_100_sgd"
+  name: "cnn_100_sgd_muon"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
   mode: "min"
-  n_trials: 15 # for random search 
+  n_trials: 60 # for random search 
   random_state: 42 # for reproducibility
-  hyperparams_search: True
+  hyperparams_search: False
 
 # this whole thing might be useless
 data: 
@@ -39,10 +39,11 @@ trainer:
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
-    optimizer_type: sgd
-  search:
-    weight_decay: {type: float, low: 1.0e-5, high: 1, log: False}
-    lr: {type: float, low: 1.0e-5, high: 1.0e-1, log: False}
+    optimizer_type: muon
+    initialization: exp_041_cnn_100_sgd/trial_search_best/fold_000
+    lr: 2.014513088445603e-05
+    weight_decay: 0.000297856597357391
+
 
 model:
   name: "simplecnn"
@@ -80,4 +81,3 @@ model:
     output_activation: linear                   # Activation for final layer (e.g., linear for regression)
 
  
-

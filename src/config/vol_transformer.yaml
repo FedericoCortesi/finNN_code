@@ -1,0 +1,101 @@
+experiment:
+  name: "transformer_100_adam"
+  type: "volatility"
+  random_state: 1234
+  monitor: "val_loss"
+  mode: "min"
+  n_trials: 5 # for random search 
+  random_state: 42 # for reproducibility
+  hyperparams_search: True
+
+# this whole thing might be useless
+data: 
+  df_path:  # if left out the pipeline takes it automatically
+  df_master: # if left out the pipeline takes it automatically
+
+walkforward:
+  target_col: var
+  lookback: 0
+  max_folds: 
+  step: 1257
+  ratio_train: 3
+  ratio_val: 1
+  ratio_test: 1
+  lags: 100
+  scale: True
+  annualize: True
+  scale_type: logstandard 
+  clip: 0.1
+  #purge_days: 20
+  #embargo_days: 20
+
+trainer:
+  hparams:
+    epochs: 25
+    torch_patience: 10 # if empty early stopping is not active
+    min_delta: 1e-10 # very small when not startdadized 
+    optuna_patience:  
+    loss: "mse"
+    metrics: ["mae","mse", "dir_acc", "qlike"]
+    val_every: 1
+    optimizer_type: adam
+    batch_size: 512
+  search:
+    weight_decay: {type: float, low: 0, high: 1, log: False}
+    lr: {type: float, low: 1.0e-5, high: 1.0e-1, log: True}
+
+
+model:
+  name: "transformer"
+  hparams:  
+    # ==========================
+    #  MLP HEAD PARAMETERS
+    # ==========================
+    mlp_hidden_sizes: [128, 64]                # Fully connected layers after LSTM readout
+    mlp_activation: [relu, relu]                # Activations for each MLP layer
+    dropout_rate: 0                             # Dropout applied in MLP layers
+
+    # ==========================
+    #  LSTM CORE PARAMETERS
+    # ==========================
+    lstm_hidden_sizes: [256, 256]               # Hidden size(s) of the LSTM (stack depth = len(list))
+    lstm_dropout: 0                             # Dropout between stacked LSTM layers
+    bidirectional: False                        # If True, concatenates forward & backward hidden states
+    #readout: last                               # "last" | "mean" | "max"  → how to summarize sequence output
+    use_ln: False                               # Apply LayerNorm on the readout (stabilizes noisy sequences)
+
+    # ==========================
+    #  CNN BLOCK PARAMETERS
+    # ==========================
+    conv_channels: [64, 128, 256]               # Channels per Conv1D block
+    conv_activation: [relu, relu, relu]         # Activations for each Conv1D block
+    kernel_size: 3                              # Convolution kernel size
+    padding: 1                                  # Convolution padding
+    pool: adaptive_max                          # "adaptive_avg" or "adaptive_max"
+    pool_k: 4                                   # Output size of pooling layer
+    use_bn: False                               # Apply BatchNorm in convolutional layers
+
+    # ==========================
+    #  TRANSFORMER CORE
+    # ==========================
+    d_model: 128                # Latent dimension (Keep small for financial noise)
+    nhead: 8                    # Must divide d_model (16 dim per head)
+    num_layers: 2               # 2-3 layers is usually the "sweet spot" for 100-day windows
+    dim_feedforward: 512        # 4x d_model
+    transformer_dropout: 0      # Financial data is noisy; dropout is essential
+    pe_dropout: 0.05            # Dropout on positional encodings
+    activation: "gelu"          # Standard for Transformers
+    
+    # ==========================
+    #  READOUT & NORMALIZATION
+    # ==========================
+    readout: "mean"             # "mean" is more robust to daily vol spikes than "last"
+    use_ln: True                # LayerNorm is critical for Transformer stability
+
+    # ==========================
+    #  OUTPUT PARAMETERS
+    # ==========================
+    output_activation: linear                   # Activation for final layer (e.g., linear for regression)
+
+ 
+

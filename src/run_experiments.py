@@ -86,7 +86,7 @@ def main():
             return (c.walkforward.lags, )
         elif cfg.model.name.lower() == "simplecnn":
             return (1, cfg.walkforward.lags)  # (C, L)
-        elif cfg.model.name.lower() == "lstm":
+        elif cfg.model.name.lower() in ["lstm", "transformer"]:
             return (cfg.walkforward.lags, 1)
         else:
             console_logger.warning(f"Model: {cfg.model.name} not recognized!")

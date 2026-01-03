@@ -35,8 +35,8 @@ DEVICE = 'cuda'
 # Utilities
 # =========================
 def load_cfg(base: Path) -> AppConfig:
-    cfg_json = json.loads((base / "config_snapshot.json").read_text())
-    return AppConfig.from_dict(cfg_json["cfg"])
+    cfg_json = json.loads((base / "config_snapshot.json").read_text()) 
+    return AppConfig.from_dict(cfg_json["cfg"]) 
 
 def add_const(x: np.ndarray) -> np.ndarray:
     return sm.add_constant(x, has_constant="add")
@@ -429,19 +429,16 @@ def _hash_fold_data(Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yt
 TRIAL = 'trial_search_best'
 def main():
     names = [
-    "exp_037_cnn_100_adam_lr",
-    "exp_169_cnn_100_muon_icml_3",
-    "exp_041_cnn_100_sgd",
-    "exp_036_lstm_100_muon_lr",
-    "exp_039_lstm_100_adam_lr",
-    "exp_042_lstm_100_sgd",
-    "exp_035_mlp_100_muon_lr",
-    "exp_038_mlp_100_adam_lr",
-    "exp_043_mlp_100_sgd"]
+    "exp_172_cnn_100_muon_icml_cnn_100_sgd",
+    "exp_173_cnn_100_adam_lr_cnn_100_muon_icml",
+    "exp_174_cnn_100_adam_lr_cnn_100_sgd",
+    "exp_175_cnn_100_sgd_cnn_100_muon_icml",
+    "exp_176_cnn_100_sgd_cnn_100_adam_lr",
 
-    comb2 = list(itertools.combinations(names, 2))
+]
+    #comb2 = list(itertools.combinations(names, 2))
     #comb3 = list(itertools.combinations(all_names, 3))
-    names = comb2
+    #names = comb2
 
     for i, ITEM in tqdm(enumerate(names)):
 
@@ -482,6 +479,13 @@ def main():
             
         else:
             base  = Path(VOL_EXPERIMENTS_DIR) / ITEM / TRIAL
+            if not base.exists():
+                parent = base.parent  # Path(VOL_EXPERIMENTS_DIR) / ITEM
+                subdirs = sorted([p for p in parent.iterdir() if p.is_dir()], key=lambda p: p.name)
+                if not subdirs:
+                    raise FileNotFoundError(f"No subdirectories found in {parent}")
+                base = subdirs[-1]  # last subdir alphabetically
+            
             print(f'\n\nAnalyzing {base}\n\n')
             cfg = load_cfg(base)
             wf = WFCVGenerator(config=cfg.walkforward)
@@ -509,7 +513,7 @@ def main():
                 del Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged
                 import gc; gc.collect()
                 continue
-            
+         
             # --- CACHE MISS: Compute OLS, LASSO, and variances ---
             print(f"[CACHE MISS] Fold {fold_idx}: Computing OLS/LASSO")
 

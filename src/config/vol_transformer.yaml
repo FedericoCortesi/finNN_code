@@ -4,7 +4,7 @@ experiment:
   random_state: 1234
   monitor: "val_loss"
   mode: "min"
-  n_trials: 5 # for random search 
+  n_trials: 25 # for random search 
   random_state: 42 # for reproducibility
   hyperparams_search: True
 

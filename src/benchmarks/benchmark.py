@@ -97,7 +97,7 @@ def _make_input_shape_for_eval(cfg, X_sample: torch.Tensor | np.ndarray, state_d
     else:
         raise ValueError(f"Unexpected batch shape for X: {shape}")
 
-    if name == "lstm":
+    if name in ["lstm",'transformer']:
         D_ckpt = _infer_lstm_input_size_from_ckpt(state_dict)
         D = D_ckpt if D_ckpt is not None else D_data  # prefer ckpt
         return (T, D)
@@ -429,13 +429,8 @@ def _hash_fold_data(Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yt
 TRIAL = 'trial_search_best'
 def main():
     names = [
-    "exp_172_cnn_100_muon_icml_cnn_100_sgd",
-    "exp_173_cnn_100_adam_lr_cnn_100_muon_icml",
-    "exp_174_cnn_100_adam_lr_cnn_100_sgd",
-    "exp_175_cnn_100_sgd_cnn_100_muon_icml",
-    "exp_176_cnn_100_sgd_cnn_100_adam_lr",
-
-]
+   'exp_177_transformer_100_adam'
+   ]
     #comb2 = list(itertools.combinations(names, 2))
     #comb3 = list(itertools.combinations(all_names, 3))
     #names = comb2

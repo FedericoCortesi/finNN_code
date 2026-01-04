@@ -35,7 +35,7 @@ class Trainer:
         self.logger = logger
         
         # console logging, mainly fro debugging
-        self.console_logger = setup_logger("Trainer", level="DEBUG")
+        self.console_logger = setup_logger("Trainer", level="INFO")
         
         self.device = torch.device("cuda")
         # Fail if cuda (=GPU) not available

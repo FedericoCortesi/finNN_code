@@ -37,7 +37,7 @@ def main():
 
 
     # setup logger
-    console_logger = setup_logger("Experiment", level="DEBUG")
+    console_logger = setup_logger("Experiment", level="INFO")
 
     # --- GPU check (PyTorch) ---
     gpu_test()

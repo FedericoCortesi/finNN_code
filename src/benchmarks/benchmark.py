@@ -426,7 +426,7 @@ def _hash_fold_data(Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yt
 # =========================
 # Main
 # =========================
-TRIAL = 'trial_search_best'
+TRIAL = 'trial_20260104_151649'
 def main():
     names = [
    'exp_177_transformer_100_adam'

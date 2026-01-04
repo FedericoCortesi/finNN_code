@@ -1,10 +1,10 @@
 experiment:
-  name: "transformer_100_adam"
+  name: "transformer_100_adam_lr"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
   mode: "min"
-  n_trials: 25 # for random search 
+  n_trials: 15 # for random search 
   random_state: 42 # for reproducibility
   hyperparams_search: True
 
@@ -32,16 +32,16 @@ walkforward:
 trainer:
   hparams:
     epochs: 25
+    batch_size: 512
     torch_patience: 10 # if empty early stopping is not active
     min_delta: 1e-10 # very small when not startdadized 
-    optuna_patience:  
+    optuna_patience: 10 
     loss: "mse"
     metrics: ["mae","mse", "dir_acc", "qlike"]
     val_every: 1
     optimizer_type: adam
-    batch_size: 512
+    weight_decay: 0.0
   search:
-    weight_decay: {type: float, low: 0, high: 1, log: False}
     lr: {type: float, low: 1.0e-5, high: 1.0e-1, log: True}
 
 
@@ -85,6 +85,7 @@ model:
     transformer_dropout: 0      # Financial data is noisy; dropout is essential
     pe_dropout: 0.05            # Dropout on positional encodings
     activation: "gelu"          # Standard for Transformers
+    projection: 'linear'
     
     # ==========================
     #  READOUT & NORMALIZATION

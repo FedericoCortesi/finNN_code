@@ -6,13 +6,14 @@ import pandas as pd
 
 from utils.paths import VOL_EXPERIMENTS_DIR, BENCHMARKS_DIR
 
+TYPE = 'transformer'
 
 def main():
     all_dfs = []
     # iterate over directory
     for file in os.listdir(VOL_EXPERIMENTS_DIR):
         # restriction
-        if 'ensemble' not in file:
+        if TYPE not in file:
             continue
 
         file_path = Path(VOL_EXPERIMENTS_DIR) / file
@@ -50,7 +51,7 @@ def main():
     print('Shape: ', df_out.shape)
 
     time = datetime.now() 
-    name = f'results_ensemble_{time:%d%m%Y_%H%M%S}.csv'
+    name = f'results_{TYPE}_{time:%d%m%Y_%H%M%S}.csv'
     out_path = BENCHMARKS_DIR / 'tables' /name 
     
     df_out.to_csv(out_path, index=False)

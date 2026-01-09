@@ -429,7 +429,7 @@ def _hash_fold_data(Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yt
 TRIAL = 'trial_20260104_151649'
 def main():
     names = [
-   'exp_177_transformer_100_adam'
+   'exp_181_transformer_100_sgd'
    ]
     #comb2 = list(itertools.combinations(names, 2))
     #comb3 = list(itertools.combinations(all_names, 3))

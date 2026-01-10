@@ -7,13 +7,15 @@ import pandas as pd
 from utils.paths import VOL_EXPERIMENTS_DIR, BENCHMARKS_DIR
 
 TYPE = 'transformer'
+COUNT = 2
+EXCLUDE = 'ensemble'
 
 def main():
     all_dfs = []
     # iterate over directory
     for file in os.listdir(VOL_EXPERIMENTS_DIR):
         # restriction
-        if TYPE not in file:
+        if (file.count(TYPE) != COUNT) or (EXCLUDE in file):
             continue
 
         file_path = Path(VOL_EXPERIMENTS_DIR) / file
@@ -51,7 +53,7 @@ def main():
     print('Shape: ', df_out.shape)
 
     time = datetime.now() 
-    name = f'results_{TYPE}_{time:%d%m%Y_%H%M%S}.csv'
+    name = f'results_{TYPE}_{COUNT}_{time:%d%m%Y_%H%M%S}.csv'
     out_path = BENCHMARKS_DIR / 'tables' /name 
     
     df_out.to_csv(out_path, index=False)

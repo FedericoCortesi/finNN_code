@@ -25,6 +25,11 @@ NAMES = {
         "adam": "exp_038_mlp_100_adam_lr",
         "sgd" : "exp_043_mlp_100_sgd",
     },
+    "transformer": {
+        "muon": "exp_180_transformer_100_muon",
+        "adam": "exp_179_transformer_100_adam_lr",
+        "sgd" : "exp_181_transformer_100_sgd"
+    }
 }
 TRIAL = 'trial_search_best'
 FOLD = 'fold_000'

@@ -450,11 +450,6 @@ class Trainer:
                 epoch_loss += loss.detach() * bs
                 seen += bs
                 
-                # per batch logging
-                if batch_idx % 100 == 0:
-                    if epoch == 1:
-                        batch_loss = loss.detach().item()
-                        batch_losses.append(batch_loss)
 
             # compute loss
             tr_loss_avg = (epoch_loss / max(seen, 1)).item()
@@ -473,8 +468,7 @@ class Trainer:
 
                     # create history and print
                     history.append({"tr_loss":tr_loss_avg, 
-                                    "val_loss":vloss,
-                                    "batch_losses":batch_losses})
+                                    "val_loss":vloss})
                     self.console_logger.info(
                         f"Epoch {epoch:03d} | loss={epoch_loss/max(seen,1):.12f} "
                         f"| val_loss={vloss:.12f} | time: {time.time()-start_epoch_time:.3f}s"

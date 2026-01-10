@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 # necessary helper function to avoid storing states on the GPU
 def _state_dict_cpu(model: torch.nn.Module):
@@ -30,6 +31,7 @@ def early_stopping_step(
     """
     improved = (val_loss < best_val - min_delta) if mode == "min" else (val_loss > best_val + min_delta)
 
+
     if improved:
         best_val = val_loss
         stalled = 0
@@ -41,5 +43,8 @@ def early_stopping_step(
         stalled += 1
         best_state = None
         should_stop = (patience > 0 and stalled >= patience)
+
+    if val_loss == np.nan:
+        should_stop = True
 
     return best_val, stalled, improved, should_stop

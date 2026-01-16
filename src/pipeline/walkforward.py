@@ -13,7 +13,7 @@ from pipeline.preprocessing import preprocess
 from config.config_types import WFConfig
 from pipeline.pipeline_utils import scale_split
 
-from utils.custom_formatter import setup_logger
+from utils.custom_formatter import setup_logger 
 from  utils.paths import SP500_PATH, DATA_DIR
 
 class WFCVGenerator:
@@ -413,7 +413,6 @@ class WFCVGenerator:
             if self.config.clip is not None and self.config.clip !=0:
                 self.console_logger.debug(f'self.config.clip: {self.config.clip}')
                 # Calculate percentiles threshold from training data only
-                # TODO: MIGHT BE LEAKING, CHECK THIS!
                 X_flat = Xtr.flatten()
                 y_flat = ytr.flatten()
                 lower_threshold_x = np.percentile(X_flat, self.config.clip)  # 0.5th percentile

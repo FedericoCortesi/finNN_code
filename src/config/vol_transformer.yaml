@@ -1,10 +1,10 @@
 experiment:
-  name: "transformer_100_sgd"
+  name: "transformer_100_sgd_v2"
   type: "volatility"
   random_state: 1234
   monitor: "val_loss"
   mode: "min"
-  n_trials: 15 # for random search 
+  n_trials: 25 # for random search 
   random_state: 42 # for reproducibility
   hyperparams_search: True
 
@@ -41,8 +41,8 @@ trainer:
     val_every: 1
     optimizer_type: sgd
   search:
-    lr: {type: float, low: 1.0e-5, high: 1.0e-1, log: True}
-    weight_decay: {type: float, low: 0, high: 0.1, log: False}
+    lr: {type: float, low: 1.0e-5, high: 5e-3, log: True}
+    weight_decay: {type: float, low: 1e-6, high: 0.1, log: True}
 
 
 model:
@@ -52,8 +52,8 @@ model:
     #  MLP HEAD PARAMETERS
     # ==========================
     mlp_hidden_sizes: [128, 64]                # Fully connected layers after LSTM readout
-    mlp_activation: [relu, relu]                # Activations for each MLP layer
-    dropout_rate: 0                             # Dropout applied in MLP layers
+    mlp_activation: [relu, relu]               # Activations for each MLP layer
+    dropout_rate: 0                            # Dropout applied in MLP layers
 
     # ==========================
     #  LSTM CORE PARAMETERS
@@ -61,7 +61,7 @@ model:
     lstm_hidden_sizes: [256, 256]               # Hidden size(s) of the LSTM (stack depth = len(list))
     lstm_dropout: 0                             # Dropout between stacked LSTM layers
     bidirectional: False                        # If True, concatenates forward & backward hidden states
-    #readout: last                               # "last" | "mean" | "max"  → how to summarize sequence output
+    #readout: last                              # "last" | "mean" | "max"  → how to summarize sequence output
     use_ln: False                               # Apply LayerNorm on the readout (stabilizes noisy sequences)
 
     # ==========================

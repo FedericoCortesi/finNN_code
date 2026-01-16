@@ -426,27 +426,10 @@ def _hash_fold_data(Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yt
 # =========================
 # Main
 # =========================
-TRIAL = 'trial_20260104_151649'
+TRIAL = 'trial_search_best'
 def main():
     names = [
-    "exp_182_lstm_100_muon_lr_lstm_100_adam_lr",
-    "exp_183_lstm_100_muon_lr_lstm_100_sgd",
-    "exp_184_lstm_100_adam_lr_lstm_100_muon_lr",
-    "exp_185_lstm_100_adam_lr_lstm_100_sgd",
-    "exp_186_lstm_100_sgd_lstm_100_muon_lr",
-    "exp_187_lstm_100_sgd_lstm_100_adam_lr",
-    "exp_188_mlp_100_muon_lr_mlp_100_adam_lr",
-    "exp_189_mlp_100_muon_lr_mlp_100_sgd",
-    "exp_190_mlp_100_adam_lr_mlp_100_muon_lr",
-    "exp_191_mlp_100_adam_lr_mlp_100_sgd",
-    "exp_192_mlp_100_sgd_mlp_100_muon_lr",
-    "exp_193_mlp_100_sgd_mlp_100_adam_lr",
-    "exp_194_transformer_100_muon_transformer_100_adam_lr",
-    "exp_195_transformer_100_muon_transformer_100_sgd",
-    "exp_196_transformer_100_adam_lr_transformer_100_muon",
-    "exp_197_transformer_100_adam_lr_transformer_100_sgd",
-    "exp_198_transformer_100_sgd_transformer_100_muon",
-    "exp_199_transformer_100_sgd_transformer_100_adam_lr",
+    'exp_200_transformer_100_sgd_v2'
 ]
 
     #comb2 = list(itertools.combinations(names, 2))

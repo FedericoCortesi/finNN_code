@@ -267,5 +267,6 @@ def scale_split(
     
     return (
         Xtr_s, ytr_s, Xv_s, yv_s, Xte_s, yte_s,
-        Xtr_val_s, ytr_val_s, Xte_merged_s, yte_merged_s
+        Xtr_val_s, ytr_val_s, Xte_merged_s, yte_merged_s,
+        X_scaler, y_scaler, X_scaler_merged, y_scaler_merged
     )

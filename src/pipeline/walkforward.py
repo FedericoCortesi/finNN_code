@@ -464,7 +464,8 @@ class WFCVGenerator:
                 )
                 (
                     Xtr, ytr, Xv, yv, Xte, yte,
-                    Xtr_val, ytr_val, Xte_merged, yte_merged
+                    Xtr_val, ytr_val, Xte_merged, yte_merged,
+                    X_scaler, y_scaler, X_scaler_merged, y_scaler_merged
                 ) = result
             else:
                 # Create unscaled merged arrays
@@ -472,11 +473,12 @@ class WFCVGenerator:
                 ytr_val = np.concatenate([ytr, yv], axis=0)
                 Xte_merged = Xte.copy()
                 yte_merged = yte.copy()
+                X_scaler, y_scaler, X_scaler_merged, y_scaler_merged = None, None, None, None
 
             self.console_logger.debug(f'Generating fold: {fold}')
             self.console_logger.debug(f'Merged arrays shapes: Xtr_val={Xtr_val.shape}, ytr_val={ytr_val.shape}')
             self.console_logger.debug(f'Merged test shapes: Xte_merged={Xte_merged.shape}, yte_merged={yte_merged.shape}')
 
-            yield Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged, id_tr, id_v, id_te, window_train, window_val, window_test
+            yield Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged, id_tr, id_v, id_te, window_train, window_val, window_test, X_scaler, y_scaler, X_scaler_merged, y_scaler_merged
 
 

@@ -489,7 +489,17 @@ def main():
         # 1) Stream folds once: compute variances + OLS metrics + NN calibration on the fly
         var_rows, ols_rows, lasso_rows, nn_calib_rows = [], [], [], []
 
-        for fold_idx, (Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged, id_tr, id_v, id_te, windows_tr, windows_te, windows_v) in enumerate(wf.folds()):
+        for fold_idx, (
+            Xtr, ytr,
+            Xv, yv,
+            Xte, yte,
+            Xtr_val, ytr_val,
+            Xte_merged, yte_merged,
+            id_tr, id_v, id_te,
+            window_train, window_val, window_test,
+            X_scaler, y_scaler,
+            X_scaler_merged, y_scaler_merged
+        ) in enumerate(wf.folds()):
 
             # --- CACHE GUARD: Check if we've seen this fold data before ---
             fold_sig = _hash_fold_data(Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yte_merged)

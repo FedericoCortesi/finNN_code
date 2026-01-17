@@ -28,7 +28,7 @@ os.makedirs(OUTDIR, exist_ok=True)
 
 ## TODO: change source
 print(os.listdir())
-df_pl = pl.read_parquet("sp500_vol_forecasts_2000_2024.parquet")
+df_pl = pl.read_parquet("sp500_vol_forecasts_2000_2024_v2.parquet")
 df = df_pl.to_pandas()
 df["date"] = pd.to_datetime(df["date"])
 
@@ -156,13 +156,13 @@ for m in MODELS:
     if m == "ground_truth":
         cols = ["date", "permno", "ret", "y"]
         tmp = df[cols].dropna().copy()
-        tmp["sig_hat"] = np.sqrt(np.exp(tmp["y"]))  # uses realized y as "prediction"
+        tmp["sig_hat"] = np.sqrt(tmp["y"])  # uses realized y as "prediction"
     else:
         if m not in df.columns:
             continue
         cols = ["date", "permno", "ret", "y", m]
         tmp = df[cols].dropna().copy()
-        tmp["sig_hat"] = np.sqrt(np.exp(tmp[m]))  # matches your notebook logic
+        tmp["sig_hat"] = np.sqrt(tmp[m])  # matches your notebook logic
 
     # Quintiles each day
     tmp["q"] = tmp.groupby("date")["sig_hat"].transform(assign_quintile)
@@ -252,8 +252,8 @@ family_colors = {
     "Linear": "tab:blue",
     "CNN": "tab:orange",
     "LSTM": "tab:green",
-    "TRANSFORMER": "tab:red",
-    "MLP": "tab:purple",
+    "MLP": "tab:red",
+    "TRANSFORMER": "tab:purple",
     "Ground truth": "tab:brown"
 }
 

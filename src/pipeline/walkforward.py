@@ -55,6 +55,7 @@ class WFCVGenerator:
 
     def _load_df(self, df_long) -> pd.DataFrame:
         if df_long is None:
+            self.console_logger.debug(f'self.config.annualize: {self.config.annualize}')
             df = preprocess(annualize_var=self.config.annualize)[[self.time_col, self.target_col, self.id_col]].copy()
         elif isinstance(df_long, str):
             df = preprocess(path=f'{DATA_DIR}/df_long', annualize_var=self.config.annualize)[[self.time_col, self.target_col, self.id_col]].copy()
@@ -65,7 +66,7 @@ class WFCVGenerator:
         required = {self.time_col, self.target_col, self.id_col}
         missing = required - set(df.columns)
         if missing:
-            raise KeyError(f"Missing required columns: {missing}")
+            raise KeyError(f"Missing required columns: {missing}") 
 
         # select & enforce dtypes
         df = df[[self.time_col, self.target_col, self.id_col]].copy()
@@ -76,7 +77,7 @@ class WFCVGenerator:
             df[self.id_col] = pd.to_numeric(df[self.id_col], errors="raise", downcast="integer")
 
 
-        self.console_logger.debug(f'Preprocessed df: {df}')
+        self.console_logger.debug(f'Preprocessed df:\n{df.describe()}')
         return df
 
 
@@ -91,7 +92,6 @@ class WFCVGenerator:
         folds_count = 0  
 
         while True:
-            self.console_logger.debug(f"In walk forward true")
             a, b = t_0 , t_0 + self.config.T_train # train
             c = b + self.config.T_val # validation
             d = c + self.config.T_test # test
@@ -443,7 +443,11 @@ class WFCVGenerator:
                 Xtr, ytr = Xtr[train_mask], ytr[train_mask]
                 Xv, yv = Xv[val_mask], yv[val_mask]
                 Xte, yte = Xte[test_mask], yte[test_mask]
-                
+
+                window_train, window_val, window_test = window_train[train_mask], window_val[val_mask], window_test[test_mask]
+                if self.keep_id_col:
+                    id_tr, id_v, id_te = id_tr[train_mask], id_v[val_mask], id_te[test_mask]
+
                 self.console_logger.debug(
                     f"Fold {fold} after clipping (y): train={ytr.shape}, val={yv.shape}, test={yte.shape}"
                 )                
@@ -457,6 +461,7 @@ class WFCVGenerator:
 
 
             if self.scale:
+                self.console_logger.debug('Scaling')
                 result = scale_split(
                     Xtr, ytr, Xv, yv, Xte, yte,
                     scale_type=self.scale_type,
@@ -468,6 +473,7 @@ class WFCVGenerator:
                     X_scaler, y_scaler, X_scaler_merged, y_scaler_merged
                 ) = result
             else:
+                self.console_logger.debug('Not scaling')
                 # Create unscaled merged arrays
                 Xtr_val = np.concatenate([Xtr, Xv], axis=0)
                 ytr_val = np.concatenate([ytr, yv], axis=0)

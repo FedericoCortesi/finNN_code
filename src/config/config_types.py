@@ -109,6 +109,7 @@ class ExperimentConfig:
     type: str = "price_prediction"
     n_trials: int = 20
     random_state: Optional[int] = None
+    n_steps: Optional[int] = None
 
 # ---- Root config ----
 @dataclass

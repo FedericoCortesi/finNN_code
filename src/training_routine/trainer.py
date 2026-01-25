@@ -335,6 +335,10 @@ class Trainer:
         # define sizes
         epochs = int(self.cfg.trainer.hparams["epochs"])
         batch_size = int(self.cfg.trainer.hparams["batch_size"])
+        # declare variable to stop experiments using sub-epoch precision
+        stop_after = self.cfg.experiment.n_steps
+        if stop_after is not None:
+            epochs = 1
 
         # assume Xtr_tensor: (N, D), ytr_tensor: (N,)
         N = Xtr_tensor.size(0)
@@ -458,7 +462,10 @@ class Trainer:
                 bs = xb.shape[0]
                 epoch_loss += loss.detach() * bs
                 seen += bs
-                
+
+                # allow to stop after n steps comparing to batch_idx. 
+                if stop_after is not None and stop_after <= batch_idx:
+                    break 
 
             # compute loss
             tr_loss_avg = (epoch_loss / max(seen, 1)).item()

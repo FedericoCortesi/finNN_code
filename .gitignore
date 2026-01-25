@@ -73,6 +73,7 @@ Thumbs.db
 #*.sh
 src/data/*.parquet
 *.parquet
+*.npz
 logs/
 
 # Ignore PyTorch model checkpoints

@@ -51,4 +51,4 @@ cd /orcd/home/002/corte911/code/finNN_code
 #python -u src/run_experiments.py --config transformer_100_sgd_transformer_100_muon.yaml
 #python -u src/run_experiments.py --config transformer_100_sgd_transformer_100_adam_lr.yaml
 
-python -u src/run_experiments.py --config vol_transformer.yaml
+python -u src/run_experiments.py --config mlp_eos.yaml

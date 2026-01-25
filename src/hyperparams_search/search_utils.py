@@ -17,7 +17,7 @@ from models import create_model
 from utils.custom_formatter import setup_logger
 
 
-console_logger = setup_logger("Search_utils", "INFO")
+console_logger = setup_logger("Search_utils", "DEBUG")
 
 def to_dict(cfg):
     if is_dataclass(cfg):
@@ -135,23 +135,23 @@ def sample_hparams_into_cfg(base_cfg, trial):
     for k,v in parsed_config["model"]["hparams"].items():
         if v is None:
             parsed_config["model"]["hparams"][k] = cfg["model"]["hparams"][k]
-    console_logger.debug(parsed_config)
     return parsed_config
 
 
 
-def _make_report_cb(trial, mode: str = "min", patience: int = 5):
+def _make_report_cb(trial, mode: str = "min", patience: int = 10):
     """Simplified callback - MedianPruner handles most of the logic"""
-    
+
     def cb(epoch: int, val_metric: float) -> bool:
         trial.report(val_metric, step=epoch)
         
-        # Simple debug info
-        console_logger.debug(f'Trial {trial.number}, Epoch {epoch}: val_metric={val_metric:.6f}')
         
         # Let MedianPruner decide
         should_prune = trial.should_prune()
         
+        if epoch < patience:
+            False
+
         if should_prune:
             return True
         
@@ -174,8 +174,6 @@ def optuna_objective(trial: optuna.trial.Trial,
 
     trial_cfg = AppConfig.from_dict(trial_cfg)
 
-    console_logger.debug(f"Model params: {trial_cfg.model.hparams}")
-    console_logger.debug(f"Trainer params: {trial_cfg.trainer.hparams}")
 
 
     # 2) fresh trainer per trial (avoid any state carry-over)
@@ -192,6 +190,7 @@ def optuna_objective(trial: optuna.trial.Trial,
     # 5) epoch-wise reporting so ASHA can prune early
     mode = trial_cfg.experiment.mode.lower()  # "min" or "max"
     patience = trial_cfg.trainer.hparams.get("optuna_patience",10)
+    console_logger.debug(f'patience: {patience}')
     report_cb = _make_report_cb(trial, 
                                 mode=mode, 
                                 patience=patience)

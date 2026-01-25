@@ -10,6 +10,7 @@ warnings.simplefilter(action="ignore")
 console_logger = setup_logger("Preprocessing", "INFO")
 
 def import_data(path) -> pd.DataFrame:
+    console_logger.debug('In import data')
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
     df = pd.read_parquet(path)
@@ -47,6 +48,7 @@ def adjust_for_splits(
     share_factor : name of cumulative share factor (cfacshr)
     group_col    : security identifier (permno)
     """
+    console_logger.debug('In adjust for splits')
     out = df.copy()
 
     if group_col not in out.columns:
@@ -83,6 +85,7 @@ def adjust_for_splits(
     return out
 
 def handle_nans(df: pd.DataFrame) -> pd.DataFrame:
+    console_logger.debug('In handle nans')
     # --- Adjust prices first (split-adjusted base) ---
     price_cols = [c for c in ("close","open","high","low") if c in df.columns]
     df = adjust_for_splits(df, price_cols=tuple(price_cols), group_col="permno")
@@ -136,6 +139,7 @@ def create_ohlc_returns(df:pd.DataFrame,
     """
     Transform prices to returns.
     """
+    console_logger.debug('create returns')
     df = df.sort_values(['permno', 'date']).copy()  # always sort before groupby
 
     # Iterate over each column
@@ -151,6 +155,7 @@ def create_ohlc_returns(df:pd.DataFrame,
     return df
 
 def create_time_index(df:pd.DataFrame):
+    console_logger.debug('create time index')
     # Transform to contiguos index
     unique_dates = np.sort(df["date"].unique())
     date_to_int = {d: i for i, d in enumerate(unique_dates)} # 
@@ -159,6 +164,7 @@ def create_time_index(df:pd.DataFrame):
     return df
 
 def compute_variance(df:pd.DataFrame, annualize_var:bool=False):
+    console_logger.debug('compute var')
     df = df.copy()
     
     # Pre-calculate the constant value
@@ -189,6 +195,7 @@ def preprocess(path:str=SP500_PATH,
                ohlc_rets:bool=False,
                variance:bool=True,
                annualize_var:bool=False):
+    console_logger.debug('in preprocess')
     df = import_data(path)
     # we dont need to refactor since we only look
     # at ratios for volatility.

@@ -139,10 +139,11 @@ def main():
             input_shape = make_input_shape(cfg)
 
             # ---- build study (TPE + ASHA) and run for this fold ----
+            patience = cfg.trainer.hparams.get('optuna_patience', 10)
             study = optuna.create_study(
                 direction=direction,
                 sampler=TPESampler(seed=cfg.experiment.random_state, multivariate=True),
-                pruner=MedianPruner(n_startup_trials=3, n_warmup_steps=10, interval_steps=1),  # Median-based pruning
+                pruner=MedianPruner(n_startup_trials=3, n_warmup_steps=patience, interval_steps=1),  # Median-based pruning
             )
 
             # Define a "bound" objective function with extra args pre-filled

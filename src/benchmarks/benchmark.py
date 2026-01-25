@@ -427,17 +427,20 @@ def _hash_fold_data(Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yt
 # Main
 # =========================
 TRIAL = 'trial_search_best'
+
+trials = ['trial_000_000', 'trial_000_001', 'trial_000_002', 'trial_000_003', 'trial_000_004']
 def main():
     names = [
-    'exp_200_transformer_100_sgd_v2'
+    'exp_202_eos_mlp_v2'
 ]
 
     #comb2 = list(itertools.combinations(names, 2))
     #comb3 = list(itertools.combinations(all_names, 3))
     #names = comb2
 
-    for i, ITEM in tqdm(enumerate(names)):
-
+    for i, trial in tqdm(enumerate(trials)):
+    #for i, ITEM in tqdm(enumerate(names)):
+        ITEM = names[0]
         # Ensemble
         if isinstance(ITEM, (list, tuple)):
             print('Analyzing ensemble')
@@ -446,6 +449,7 @@ def main():
             base_list = []
             for member in ITEM:
                 # define varibales per model
+                TRIAL = trials[i] 
                 base_member  = Path(VOL_EXPERIMENTS_DIR) / member / TRIAL
                 cfg_member = load_cfg(base_member)
                 
@@ -474,7 +478,8 @@ def main():
             
             
         else:
-            base  = Path(VOL_EXPERIMENTS_DIR) / ITEM / TRIAL
+            base  = Path(VOL_EXPERIMENTS_DIR) / ITEM / trial
+            print(base)
             if not base.exists():
                 parent = base.parent  # Path(VOL_EXPERIMENTS_DIR) / ITEM
                 subdirs = sorted([p for p in parent.iterdir() if p.is_dir()], key=lambda p: p.name)

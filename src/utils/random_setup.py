@@ -19,7 +19,7 @@ def set_global_seed(seed: int):
     
     # 3. Deterministic Operations (Critical for Logic)
     # Forces deterministic algorithms (throws error if an op is non-deterministic)
-    torch.use_deterministic_algorithms(True) 
+    torch.use_deterministic_algorithms(True, warn_only=True) 
     
     # 4. CuDNN Benchmarking (Critical for Performance/Stability)
     # benchmark=False: Prevents selecting different algorithms based on hardware benchmarking

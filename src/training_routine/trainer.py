@@ -342,10 +342,10 @@ class Trainer:
 
         # assume Xtr_tensor: (N, D), ytr_tensor: (N,)
         N = Xtr_tensor.size(0)
-        g = torch.Generator(device="cpu").manual_seed(42)  # fixed seed for reproducibility
+        #g = torch.Generator(device="cpu").manual_seed(42)  # fixed seed for reproducibility
 
         # generate a random permutation of indices
-        perm = torch.randperm(N, generator=g)
+        perm = torch.randperm(N)
 
         # shuffle both X and y with the same permutation
         Xtr_shuffled = Xtr_tensor[perm]

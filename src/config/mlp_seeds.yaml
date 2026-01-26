@@ -57,12 +57,9 @@ trainer:
       - dir_acc
       - qlike
     val_every: 1
-    optimizer_type: sgd
-    weight_decay: 0.0018197007920120467
-  search:
-    lr:
-      type: cat 
-      choices: [0.025, 0.075, 0.0075] 
+    optimizer_type: adam 
+    weight_decay: 0.01
+    lr: 0.00019243322503857425
 
 walkforward:
   target_col: var
@@ -80,10 +77,10 @@ walkforward:
   clip: 0.1
 
 experiment:
-  name: eos_mlp_v2
-  hyperparams_search: true
+  name: mlp_adam_random
+  hyperparams_search: False
   monitor: val_loss
   mode: min
   type: volatility
   n_trials: 5
-  random_state: 42
+  random_state: 4

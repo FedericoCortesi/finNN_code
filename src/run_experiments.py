@@ -18,6 +18,7 @@ from hyperparams_search.search_utils import optuna_objective, sample_hparams_int
 from utils.gpu_test import gpu_test
 from utils.paths import CONFIG_DIR, DATA_DIR
 from utils.custom_formatter import setup_logger
+from utils.random_setup import set_global_seed
 from models import create_model 
 
 import time
@@ -35,7 +36,6 @@ def main():
                         help="Optional name to override config[experiment][name].")
     args = parser.parse_args()
 
-
     # setup logger
     console_logger = setup_logger("Experiment", level="INFO")
 
@@ -46,6 +46,12 @@ def main():
     # -------- load config --------
     cfg = AppConfig.from_dict(f"{CONFIG_DIR}/{args.config}")
 
+    # set seed
+    SEED = cfg.experiment.random_state
+    SEED = SEED if SEED is not None else 42
+    set_global_seed(SEED)
+    console_logger.info(f'Random seed set: {SEED}')
+
     # Override config with CLI args if provided
     if args.data:
         cfg.data["df_path"] = args.data
@@ -54,9 +60,6 @@ def main():
 
 
     # -------- data + components --------
-    #logger = ExperimentLogger(cfg)
-    #data_path = cfg.data.get("df_path")
-
     df_long = cfg.data.get("df_long", None)  
 
     if args.data:
@@ -69,10 +72,6 @@ def main():
 
     console_logger.debug(f'cfg.walkforward: {cfg.walkforward}')
     
-
-    # instantiate trainer (PyTorch)
-    #trainer = Trainer(cfg, logger)
-
     # model input size: number of lags (columns are constant across folds)
     input_shape = cfg.walkforward.lags            # int is fine; build_model handles it
     min_folds = cfg.walkforward.min_folds
@@ -94,7 +93,6 @@ def main():
 
     # ouput shape is constant
     output_shape = cfg.walkforward.lookback + 1 if cfg.walkforward.lookback is not None else 1
-
 
     # Get bool for search
     hyperparams_search = cfg.experiment.hyperparams_search
@@ -142,7 +140,7 @@ def main():
             patience = cfg.trainer.hparams.get('optuna_patience', 10)
             study = optuna.create_study(
                 direction=direction,
-                sampler=TPESampler(seed=cfg.experiment.random_state, multivariate=True),
+                sampler=TPESampler(seed=cfg.experiment.random_state, multivariate=True), #This seed isn't important for sweeps
                 pruner=MedianPruner(n_startup_trials=3, n_warmup_steps=patience, interval_steps=1),  # Median-based pruning
             )
 
@@ -196,7 +194,7 @@ def main():
             if fold == 0:
                 console_logger.debug(f"model: {model}")
 
-            merge_tr_val = True
+            merge_tr_val = False
             console_logger.warning(f"merge_tr_val is {merge_tr_val}")
 
             trainer.fit_eval_fold(model, 

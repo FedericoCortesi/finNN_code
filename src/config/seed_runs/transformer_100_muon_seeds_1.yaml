@@ -43,7 +43,7 @@ trainer:
   hparams:
     epochs: 25
     batch_size: 512
-    torch_patience: 10
+    torch_patience: 20
     min_delta: 1e-10
     optuna_patience: 10
     loss: mse
@@ -90,7 +90,8 @@ experiment:
   type: volatility
   n_trials: 15
   random_state: 26021999
-  n_steps: null
+  n_steps: 67110
+  merge_train_val: true
 data:
   df_path: null
   df_master: null

@@ -1,4 +1,3 @@
-# TODO: make this for walkforward
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple, Union
 import yaml
@@ -110,6 +109,7 @@ class ExperimentConfig:
     n_trials: int = 20
     random_state: Optional[int] = None
     n_steps: Optional[int] = None
+    merge_train_val: Optional[bool] = False
 
 # ---- Root config ----
 @dataclass

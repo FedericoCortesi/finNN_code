@@ -71,6 +71,7 @@ experiment:
   mode: min
   type: volatility
   random_state: 42
+  merge_train_val: False 
   n_steps: 500
 
 data:

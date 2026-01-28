@@ -1,0 +1,2 @@
+trial,fold,tr_loss,val_loss,test_loss,tr_mae,val_mae,test_mae,tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,tr_undershooting_pct,val_undershooting_pct,test_undershooting_pct,seconds,model_path
+0,0,0.43908888482956443,nan,0.3929120604371525,0.5159883722665463,nan,0.4914017375946416,77.7484428524899,nan,73.00524969236626,-0.0003585375839817686,nan,-0.0003801414182898708,314.3646242618561,/orcd/home/002/corte911/code/finNN_code/src/volatility/experiments/exp_204_cnn_100_muon_seeds/trial_20260126_234431/fold_000/model_best.pt

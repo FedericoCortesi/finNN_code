@@ -3,6 +3,7 @@ import numpy as np
 from typing import Tuple, Dict, Any, Callable, Optional
 import copy
 from pathlib import Path
+import math
 
 import torch
 torch.set_float32_matmul_precision("high")
@@ -35,7 +36,7 @@ class Trainer:
         self.logger = logger
         
         # console logging, mainly fro debugging
-        self.console_logger = setup_logger("Trainer", level="INFO")
+        self.console_logger = setup_logger("Trainer", level="DEBUG")
         
         self.device = torch.device("cuda")
         # Fail if cuda (=GPU) not available
@@ -189,10 +190,6 @@ class Trainer:
             else:
                 self.optimizer_other = None  # Edge case: everything was 2D
 
-            self.console_logger.debug(
-                f"Using Muon for {len(decay_2d) + len(no_decay_2d)} 2D params "
-                f"and AdamW for {len(decay_other) + len(no_decay_other)} other params."
-            )
 
         else:
             raise ValueError(f"Unsupported self.optimizer_type '{self.optimizer_type}'")
@@ -335,10 +332,11 @@ class Trainer:
         # define sizes
         epochs = int(self.cfg.trainer.hparams["epochs"])
         batch_size = int(self.cfg.trainer.hparams["batch_size"])
+        
         # declare variable to stop experiments using sub-epoch precision
         stop_after = self.cfg.experiment.n_steps
-        if stop_after is not None:
-            epochs = 1
+        total_steps = 0
+        
 
         # assume Xtr_tensor: (N, D), ytr_tensor: (N,)
         N = Xtr_tensor.size(0)
@@ -387,20 +385,6 @@ class Trainer:
 
         self.console_logger.info(msg)
 
-        # Info on datasets
-        percentiles = [0, 5, 25, 50, 75, 95, 100]
-        if not merge_train_val:
-            self.console_logger.debug(f"np.var(ytr),np.var(yv),np.var(yte): {np.var(ytr):.8f},{np.var(yv):.8f},{np.var(yte):.8f}")
-            self.console_logger.debug(f"Y train, val, test {percentiles}:\n{np.percentile(ytr, percentiles)}\n{np.percentile(yv, percentiles)}\n{np.percentile(yte, percentiles)}")
-            self.console_logger.debug(f"np.var(Xtr),np.var(Xv),np.var(Xte): {np.var(Xtr):.8f},{np.var(Xv):.8f},{np.var(Xte):.8f}")
-            self.console_logger.debug(f"X train, val, test {percentiles}:\n{np.percentile(Xtr, percentiles)}\n{np.percentile(Xv, percentiles)}\n{np.percentile(Xte, percentiles)}")
-        else:
-            self.console_logger.debug(f"np.var(ytr),np.var(yte): {np.var(ytr):.8f},{np.var(yte):.8f}")
-            self.console_logger.debug(f"Y train, test {percentiles}:\n{np.percentile(ytr, percentiles)}\n{np.percentile(yte, percentiles)}")
-            self.console_logger.debug(f"np.var(Xtr),np.var(Xte): {np.var(Xtr):.8f},{np.var(Xte):.8f}")
-            self.console_logger.debug(f"X train, test {percentiles}:\n{np.percentile(Xtr, percentiles)}\n{np.percentile(Xte, percentiles)}")
-
-
         # debug optimizer and model
         model_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
@@ -420,6 +404,12 @@ class Trainer:
             if p.requires_grad
         )
         self.console_logger.debug(f"param_count model={model_params} optimizer={opt_params}")
+
+
+        if stop_after is not None:
+            batches_per_epoch = math.ceil(Xtr.shape[0] / batch_size)
+            epochs = math.ceil(stop_after / batches_per_epoch)
+            self.console_logger.debug(f'epochs: {epochs}, stop_after: {stop_after}')
 
         effective_epochs = 0
         # iterate over epochs
@@ -463,9 +453,19 @@ class Trainer:
                 epoch_loss += loss.detach() * bs
                 seen += bs
 
-                # allow to stop after n steps comparing to batch_idx. 
-                if stop_after is not None and stop_after <= batch_idx:
+                if batch_idx % 10 == 0:
+                    batch_losses.append((epoch_loss / max(seen, 1)).item())
+
+                # allow to stop after n steps comparing to total_steps. 
+                if stop_after is not None and stop_after <= total_steps:
+                    msg = f'Stopped after: {total_steps} steps | used stop_after: {stop_after}'
+                    self.console_logger.debug(msg)
                     break 
+
+            # Update cross-epoch batch count 
+            increase_steps = seen / batch_size
+            total_steps += increase_steps
+
 
             # compute loss
             tr_loss_avg = (epoch_loss / max(seen, 1)).item()
@@ -566,6 +566,7 @@ class Trainer:
             best_epoch = epochs
             best_val = history[-1]["tr_loss"]
         else:
+            self.console_logger.debug(f'{history}')
             val_entries = [h for h in history if "val_loss" in h]
             val_history = np.array([h["val_loss"] for h in val_entries])
             best_epoch = int(np.argmin(np.array(val_history))) + 1 if mode == "min" else int(np.argmax(np.array(val_history))) + 1

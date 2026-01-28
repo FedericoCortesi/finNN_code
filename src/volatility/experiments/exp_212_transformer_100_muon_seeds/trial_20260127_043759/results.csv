@@ -1,0 +1,2 @@
+trial,fold,tr_loss,val_loss,test_loss,tr_mae,val_mae,test_mae,tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,tr_undershooting_pct,val_undershooting_pct,test_undershooting_pct,seconds,model_path
+0,0,0.4438000603347091,nan,0.39336187778947806,0.5190111028538036,nan,0.4914338038130815,77.58816559160253,nan,73.02791278251401,-0.0003157579911523343,nan,-0.00019584739787809974,946.2199492454529,/orcd/home/002/corte911/code/finNN_code/src/volatility/experiments/exp_212_transformer_100_muon_seeds/trial_20260127_043759/fold_000/model_best.pt

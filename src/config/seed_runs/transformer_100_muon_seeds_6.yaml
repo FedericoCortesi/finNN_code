@@ -1,0 +1,97 @@
+model:
+  name: transformer
+  hparams:
+    mlp_hidden_sizes:
+    - 128
+    - 64
+    mlp_activation:
+    - relu
+    - relu
+    dropout_rate: 0
+    lstm_hidden_sizes:
+    - 256
+    - 256
+    lstm_dropout: 0
+    bidirectional: false
+    use_ln: true
+    conv_channels:
+    - 64
+    - 128
+    - 256
+    conv_activation:
+    - relu
+    - relu
+    - relu
+    kernel_size: 3
+    padding: 1
+    pool: adaptive_max
+    pool_k: 4
+    use_bn: false
+    d_model: 128
+    nhead: 8
+    num_layers: 2
+    dim_feedforward: 512
+    transformer_dropout: 0
+    pe_dropout: 0.05
+    activation: gelu
+    projection: linear
+    readout: mean
+    output_activation: linear
+    n_layers: 2
+  search: {}
+trainer:
+  hparams:
+    epochs: 25
+    batch_size: 512
+    torch_patience: 20
+    min_delta: 1e-10
+    optuna_patience: 10
+    loss: mse
+    metrics:
+    - mae
+    - mse
+    - dir_acc
+    - qlike
+    val_every: 1
+    optimizer_type: muon
+    lr: 1.7073967431528103e-05
+    weight_decay: 0.08661761457749352
+    initialization: null
+  search:
+    lr:
+      low: 1.0e-05
+      high: 0.1
+      log: true
+      type: float
+    weight_decay:
+      low: 0
+      high: 0.1
+      log: false
+      type: float
+walkforward:
+  target_col: var
+  lookback: 0
+  ratio_train: 3
+  ratio_val: 1
+  ratio_test: 1
+  step: 1257
+  lags: 100
+  max_folds: null
+  min_folds: null
+  scale: true
+  annualize: true
+  scale_type: logstandard
+  clip: 0.1
+experiment:
+  name: transformer_100_muon_seeds
+  hyperparams_search: false
+  monitor: val_loss
+  mode: min
+  type: volatility
+  n_trials: 15
+  random_state: 19630331
+  n_steps: 67110
+  merge_train_val: true
+data:
+  df_path: null
+  df_master: null

@@ -22,7 +22,7 @@ model:
 
 trainer:
   hparams:
-    epochs: 25
+    epochs: 10
     batch_size: 512
     torch_patience: 25
     min_delta: 1e-10
@@ -33,7 +33,7 @@ trainer:
     optimizer_type: sgd
     weight_decay: 0.019785566992218694
     lr: 0.09846267508453047
-    initialization: exp_039_lstm_100_adam_lr/trial_20260127_214518/fold_000
+    initialization: exp_039_lstm_100_adam_lr/trial_20260127_225332/fold_000
 
   search:
     weight_decay:

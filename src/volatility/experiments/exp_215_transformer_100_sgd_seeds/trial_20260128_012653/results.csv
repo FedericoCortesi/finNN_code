@@ -1,0 +1,2 @@
+trial,fold,tr_loss,val_loss,test_loss,tr_mae,val_mae,test_mae,tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,tr_undershooting_pct,val_undershooting_pct,test_undershooting_pct,seconds,model_path
+0,0,0.4903473898036784,nan,0.43523361627982904,0.5424879653100053,nan,0.5131459245237763,76.4702851808806,nan,71.57251746208802,0.0026201886884619175,nan,0.0027170548973319553,714.0659401416779,/orcd/home/002/corte911/code/finNN_code/src/volatility/experiments/exp_215_transformer_100_sgd_seeds/trial_20260128_012653/fold_000/model_best.pt

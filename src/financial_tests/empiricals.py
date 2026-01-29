@@ -274,7 +274,7 @@ def plot_frontier_ax(ax, frontier_df, title: str):
             zorder=3
         )
 
-    ax.set_title(title)
+    #ax.set_title(title)
     ax.grid(True, which="major", linewidth=0.6, alpha=0.25)
     ax.set_axisbelow(True)
 
@@ -354,13 +354,13 @@ def plot_turnover_panels(optimizer: str, models: list, fname: str):
             ax.axvspan(pd.to_datetime(start), pd.to_datetime(end), color="grey", alpha=0.15, zorder=0)
 
         ax.grid(True, which="both", ls="--", lw=0.5, alpha=0.6)
-        ax.set_title(q)
+        #ax.set_title(q)
         ax.set_xlabel("Date")
 
     axes[0].set_ylabel("Turnover (rolling 6m)")
     axes[0].legend(title="Model", loc="upper left", frameon=False)
 
-    fig.suptitle(f"Rolling 6-Month Turnover by Quintile ({optimizer} Optimizer)", y=1.02)
+    #fig.suptitle(f"Rolling 6-Month Turnover by Quintile ({optimizer} Optimizer)", y=1.02)
     outpath = os.path.join(OUTDIR, fname)
     fig.savefig(outpath, bbox_inches="tight")
     plt.close(fig)
@@ -399,7 +399,7 @@ for opt, series in opt_turn.items():
 for start, end in crises.values():
     ax.axvspan(pd.to_datetime(start), pd.to_datetime(end), color="grey", alpha=0.15, zorder=0)
 ax.grid(True, which="both", ls="--", lw=0.5, alpha=0.6)
-ax.set_title("Rolling 1-Year Turnover of Volatility Rankings (Q1)")
+#ax.set_title("Rolling 1-Year Turnover of Volatility Rankings (Q1)")
 ax.set_ylabel("Turnover")
 ax.set_xlabel("Date")
 ax.legend(title="Optimizer", frameon=False)

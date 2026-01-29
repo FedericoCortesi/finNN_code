@@ -429,25 +429,19 @@ def _hash_fold_data(Xtr, ytr, Xv, yv, Xte, yte, Xtr_val, ytr_val, Xte_merged, yt
 TRIAL = 'trial_search_best'
 
 def main():
-    names = {'exp_035_mlp_100_muon_lr': ['trial_000_011'], 
-             'exp_038_mlp_100_adam_lr': ['trial_000_011'], 
-             'exp_043_mlp_100_sgd': ['trial_000_012'], 
-             'exp_169_cnn_100_muon_icml_3': ['trial_000_035'], 
-             'exp_037_cnn_100_adam_lr': ['trial_000_011'], 
-             'exp_041_cnn_100_sgd': ['trial_000_010'], 
-             'exp_180_transformer_100_muon': ['trial_000_003'], 
-             'exp_179_transformer_100_adam_lr': ['trial_000_012'], 
-             'exp_181_transformer_100_sgd': ['trial_000_010'], 
-             'exp_039_lstm_100_adam_lr': ['trial_000_011'], 
-             'exp_036_lstm_100_muon_lr': ['trial_000_011'], 
-             'exp_042_lstm_100_sgd': ['trial_000_010']}
+    #names = {'exp_187_lstm_100_sgd_lstm_100_adam_lr': ['trial_20260127_215504']}
+    names = ['exp_213_lstm_100_sgd_seeds',
+             ]
 
     #comb2 = list(itertools.combinations(names, 2))
     #comb3 = list(itertools.combinations(all_names, 3))
     #names = comb2
     done_paths = []
-    for ITEM in names.keys():
-        trials = names[ITEM]
+    for ITEM in names:
+        trials = os.listdir(Path(VOL_EXPERIMENTS_DIR) / ITEM)
+        trials = sorted(trials)
+        trials = [t for t in trials if 'visuals' not in t][-14:]
+        trials = ['trial_20260128_190803']
         for i, trial in tqdm(enumerate(trials)):
             # Ensemble
             if isinstance(ITEM, (list, tuple)):

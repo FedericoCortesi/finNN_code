@@ -24,8 +24,3 @@ cd /orcd/home/002/corte911/code/finNN_code
 
 # === run your python script ===
 python -u src/run_experiments.py --config seed_runs/mlp_100_sgd_seeds_8.yaml
-python -u src/run_experiments.py --config seed_runs/mlp_100_sgd_seeds_9.yaml
-python -u src/run_experiments.py --config seed_runs/mlp_100_sgd_seeds_10.yaml
-python -u src/run_experiments.py --config seed_runs/mlp_100_sgd_seeds_11.yaml
-python -u src/run_experiments.py --config seed_runs/mlp_100_sgd_seeds_12.yaml
-python -u src/run_experiments.py --config seed_runs/mlp_100_sgd_seeds_13.yaml

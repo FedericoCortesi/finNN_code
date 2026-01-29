@@ -1,0 +1,2 @@
+trial,fold,tr_loss,val_loss,test_loss,tr_mae,val_mae,test_mae,tr_directional_accuracy_pct,val_directional_accuracy_pct,test_directional_accuracy_pct,tr_undershooting_pct,val_undershooting_pct,test_undershooting_pct,seconds,model_path
+0,0,0.49787870033685494,nan,0.42726932877960644,0.5472046338558876,nan,0.5099766239333796,76.90330884568064,nan,72.06172150957427,0.0013582281745232539,nan,0.0014631553400936772,298.0980746746063,/orcd/home/002/corte911/code/finNN_code/src/volatility/experiments/exp_207_cnn_100_sgd_seeds/trial_20260127_224701/fold_000/model_best.pt

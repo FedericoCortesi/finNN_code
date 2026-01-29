@@ -82,8 +82,9 @@ experiment:
   type: volatility
   n_trials: 15
   random_state: 10619652
-  n_steps: 111850
+  n_steps: 31318
   merge_train_val: true
+  store_test_loss: true
 data:
   df_path: null
   df_master: null

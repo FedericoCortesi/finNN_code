@@ -15,38 +15,38 @@ SEEDS = [31102003, 26021999, 31031963, 21061965,
          13204658, 59061527]
 
 NAMES = {
-    "cnn": {
-        "muon": "exp_169_cnn_100_muon_icml_3",
-        "adam": "exp_037_cnn_100_adam_lr",
-        "sgd" : "exp_041_cnn_100_sgd",
-    },
+#    "cnn": {
+#        "muon": "exp_169_cnn_100_muon_icml_3",
+#        "adam": "exp_037_cnn_100_adam_lr",
+#        "sgd" : "exp_216_cnn_100_sgd_v2",
+#    },
     "lstm": {
-        "muon": "exp_036_lstm_100_muon_lr",
-        "adam": "exp_039_lstm_100_adam_lr",
+#        "muon": "exp_036_lstm_100_muon_lr",
+#        "adam": "exp_039_lstm_100_adam_lr",
         "sgd" : "exp_042_lstm_100_sgd",
     },
-    "mlp": {
-        "muon": "exp_035_mlp_100_muon_lr",
-        "adam": "exp_038_mlp_100_adam_lr",
-        "sgd" : "exp_043_mlp_100_sgd",
-    },
-    "transformer": {
-        "muon": "exp_180_transformer_100_muon",
-        "adam": "exp_179_transformer_100_adam_lr",
-        "sgd" : "exp_181_transformer_100_sgd"
-    }
+#    "mlp": {
+#        "muon": "exp_035_mlp_100_muon_lr",
+#        "adam": "exp_038_mlp_100_adam_lr",
+#        "sgd" : "exp_043_mlp_100_sgd",
+#    },
+#    "transformer": {
+#        "muon": "exp_180_transformer_100_muon",
+#        "adam": "exp_179_transformer_100_adam_lr",
+#        "sgd" : "exp_181_transformer_100_sgd"
+#    }
 }
 
 STOP_AFTER = {
     "cnn": {
         "muon": 89480,  # 20 Epochs
         "adam": 111850, # 25 Epochs
-        "sgd" : 111850, # 25 Epochs
+        "sgd" : 67110, # 25 Epochs
     },
     "lstm": {
         "muon": 22370,  # 5 Epochs
         "adam": 111850, # 25 Epochs,
-        "sgd" : 111850, # 25 Epochs
+        "sgd" : 44740, 
     },
     "mlp": {
         "muon": 44740,  # 10 Epochs,
@@ -95,6 +95,7 @@ def create_yaml(base, seed, idx, stop_after=None):
     # Set experiment variables
     cfg.experiment.n_steps = stop_after
     cfg.experiment.merge_train_val = True 
+    cfg.experiment.store_test_loss = True 
 
 
     # change name
@@ -115,7 +116,7 @@ def main():
     for arch in NAMES.keys():
         for stop_after, base in zip(STOP_AFTER[arch].values(), NAMES[arch].values()):
                 for i, s in enumerate(SEEDS):
-                    create_yaml(base, s, i, stop_after)
+                    create_yaml(base, s, i, 31318)
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 
 A neural network training pipeline for financial time series prediction using walk-forward cross-validation. This repository implements a framework for training and evaluating machine learning models on financial data with proper temporal validation and hyperparameter optimization.
 
-## 🚀 Quick Start — Run Experiments
+##  Quick Start — Run Experiments
 
 **To run experiments and generate forecasts:**
 

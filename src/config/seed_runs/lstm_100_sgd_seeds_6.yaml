@@ -46,8 +46,8 @@ trainer:
     - qlike
     val_every: 1
     optimizer_type: sgd
-    weight_decay: 0.019785566992218694
-    lr: 0.09846267508453047
+    weight_decay: 0.0031556215480461297
+    lr: 0.0919335647066957
     initialization: null
   search:
     weight_decay:

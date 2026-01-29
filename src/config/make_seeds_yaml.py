@@ -97,6 +97,9 @@ def create_yaml(base, seed, idx, stop_after=None):
     cfg.experiment.merge_train_val = True 
     cfg.experiment.store_test_loss = True 
 
+    # set hparams
+    cfg.trainer.hparams['weight_decay'] = 0.0031556215480461297
+    cfg.trainer.hparams['lr'] = 0.0919335647066957
 
     # change name
     name = format_legend_name(base).lower().replace(' lr', '').replace(' icml', '').replace(' ', '_')

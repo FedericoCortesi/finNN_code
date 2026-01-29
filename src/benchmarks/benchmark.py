@@ -441,7 +441,6 @@ def main():
         trials = os.listdir(Path(VOL_EXPERIMENTS_DIR) / ITEM)
         trials = sorted(trials)
         trials = [t for t in trials if 'visuals' not in t][-14:]
-        trials = ['trial_20260128_190803']
         for i, trial in tqdm(enumerate(trials)):
             # Ensemble
             if isinstance(ITEM, (list, tuple)):

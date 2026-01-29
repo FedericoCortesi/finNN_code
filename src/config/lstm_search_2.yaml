@@ -35,7 +35,7 @@ trainer:
     lr: 0.09846267508453047
   search:
     weight_decay:
-      low: 1e-05squeu 
+      low: 1e-05
       high: 1
       log: false
       type: float
@@ -66,7 +66,7 @@ experiment:
   monitor: val_loss
   mode: min
   type: volatility
-  n_trials: 20
+  n_trials: 50
   random_state: 10
 
 data:

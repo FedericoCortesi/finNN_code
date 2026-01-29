@@ -307,6 +307,9 @@ class Trainer:
                 self.console_logger.warning(msg)
         val_every = int(self.cfg.trainer.hparams["val_every"])
 
+        # Should we store test loss?
+        store_test_loss = self.cfg.experiment.store_test_loss
+
         # Prepare tensors
         if merge_train_val:
             # Same name so the notation is less cumbersome
@@ -403,13 +406,13 @@ class Trainer:
             for p in g["params"]
             if p.requires_grad
         )
-        self.console_logger.debug(f"param_count model={model_params} optimizer={opt_params}")
+        #self.console_logger.debug(f"param_count model={model_params} optimizer={opt_params}")
 
 
         if stop_after is not None:
-            batches_per_epoch = math.ceil(Xtr.shape[0] / batch_size)
+            batches_per_epoch = math.ceil(Xtr_tensor.shape[0] / batch_size)
             epochs = math.ceil(stop_after / batches_per_epoch)
-            self.console_logger.debug(f'epochs: {epochs}, stop_after: {stop_after}')
+            #self.console_logger.debug(f'epochs: {epochs}, stop_after: {stop_after}, batches per epoch: {batches_per_epoch}')
 
         effective_epochs = 0
         # iterate over epochs
@@ -453,18 +456,20 @@ class Trainer:
                 epoch_loss += loss.detach() * bs
                 seen += bs
 
-                if batch_idx % 10 == 0:
+                # log per batch loss for first epoch
+                if batch_idx % 10 == 0 and epoch == 1:
+                    #self.console_logger.debug(f'in batch_loss')
                     batch_losses.append((epoch_loss / max(seen, 1)).item())
 
+                total_steps += 1
                 # allow to stop after n steps comparing to total_steps. 
                 if stop_after is not None and stop_after <= total_steps:
                     msg = f'Stopped after: {total_steps} steps | used stop_after: {stop_after}'
                     self.console_logger.debug(msg)
                     break 
 
-            # Update cross-epoch batch count 
-            increase_steps = seen / batch_size
-            total_steps += increase_steps
+            if epoch > 1:
+                batch_losses = None
 
 
             # compute loss
@@ -484,7 +489,8 @@ class Trainer:
 
                     # create history and print
                     history.append({"tr_loss":tr_loss_avg, 
-                                    "val_loss":vloss})
+                                    "val_loss":vloss,
+                                    'batch_losses':batch_losses})
                     self.console_logger.info(
                         f"Epoch {epoch:03d} | loss={epoch_loss/max(seen,1):.12f} "
                         f"| val_loss={vloss:.12f} | time: {time.time()-start_epoch_time:.3f}s"
@@ -537,26 +543,41 @@ class Trainer:
                         if should_prune:
                             raise optuna.TrialPruned()                    
             else:
+                if store_test_loss:
+                    self.console_logger.debug(f'In store_test_loss')
+                    self.model.eval()
+                    with torch.inference_mode():
+                        eval_out = self._evaluate_fold(Xte_tensor, yte_tensor)
+                        # average train loss once per epoch (one CPU sync)
+                    
+                    vloss = float(eval_out.get("loss", np.nan))
+                    msg = f"Epoch {epoch:03d} | loss={tr_loss_avg:.12f} "
+                    msg = msg + f"| test_loss={vloss:.12f} | time: {time.time()-start_epoch_time:.3f}s"
+                else:
+                    vloss = None
+                    msg = f"Epoch {epoch:03d} "
+                    msg = msg + f"| time: {time.time()-start_epoch_time:.3f}s"
+
+
                 # merged mode: no val, just log train loss
                 history.append({"tr_loss": tr_loss_avg,
+                                'test_loss': vloss,
                                 "batch_losses":batch_losses})
-                self.console_logger.info(
-                    f"Epoch {epoch:03d} | loss={tr_loss_avg:.12f} "
-                    f"| time: {time.time()-start_epoch_time:.3f}s"
-                )
+                
+                self.console_logger.info(msg)
 
             # debug grads
-            if epoch % 1 == 0:  # only every 10 epochs to avoid overhead
-                with torch.no_grad():
-                    grad_means = {}
-                    total_norm = 0
-                    for name, p in self.model.named_parameters():
-                        if p.grad is not None:
-                            grad_means[name] = p.grad.abs().mean().item()
-                            param_norm = p.grad.data.norm(2)
-                            total_norm += param_norm.item()**2
-                    total_norm = total_norm ** 0.5
-                    grad_history.append({"epoch": epoch, **grad_means})
+            #if epoch % 1 == 0:  # only every 10 epochs to avoid overhead
+            #    with torch.no_grad():
+            #        grad_means = {}
+            #        total_norm = 0
+            #        for name, p in self.model.named_parameters():
+            #            if p.grad is not None:
+            #                grad_means[name] = p.grad.abs().mean().item()
+            #                param_norm = p.grad.data.norm(2)
+            #                total_norm += param_norm.item()**2
+            #        total_norm = total_norm ** 0.5
+            #        grad_history.append({"epoch": epoch, **grad_means})
 
             effective_epochs += 1
 
@@ -566,7 +587,7 @@ class Trainer:
             best_epoch = epochs
             best_val = history[-1]["tr_loss"]
         else:
-            self.console_logger.debug(f'{history}')
+            #self.console_logger.debug(f'{history}')
             val_entries = [h for h in history if "val_loss" in h]
             val_history = np.array([h["val_loss"] for h in val_entries])
             best_epoch = int(np.argmin(np.array(val_history))) + 1 if mode == "min" else int(np.argmax(np.array(val_history))) + 1
@@ -589,7 +610,8 @@ class Trainer:
 
         # Model state w/ best val 
         if saved_best_model_state is None: 
-            self.console_logger.warning(f"saved_best_model_state is None!") 
+            if not merge_train_val:
+                self.console_logger.warning(f"saved_best_model_state is None!") 
             final_state = self.model.state_dict()
         else:
             final_state = saved_best_model_state

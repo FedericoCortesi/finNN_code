@@ -53,13 +53,13 @@ class ExperimentLogger:
         ]
 
         if existing_dirs:
-            # If multiple match (unlikely), pick the one with the highest numeric id
+            # If multiple match (unlikely), pick the one with the lowest numeric id
             def _extract_num(p: Path) -> int:
                 try:
                     return int(p.name.split("_")[1])
                 except Exception:
                     return -1
-            existing_dirs.sort(key=_extract_num, reverse=True)
+            existing_dirs.sort(key=_extract_num, reverse=False)
             self.exp_dir: Path = existing_dirs[0]
             self.console_logger.warning(
                 f"Experiment with name '{exp_name}' already exists: {self.exp_dir}. "

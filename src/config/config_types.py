@@ -110,6 +110,7 @@ class ExperimentConfig:
     random_state: Optional[int] = None
     n_steps: Optional[int] = None
     merge_train_val: Optional[bool] = False
+    store_test_loss: Optional[bool] = True
 
 # ---- Root config ----
 @dataclass

@@ -69,7 +69,7 @@ walkforward:
   annualize: true
   portfolios: 0
   noise:
-  - 0.5900000000000001
+  - 0
   scale_type: logstandard
   clip: 0.1
 experiment:

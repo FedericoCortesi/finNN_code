@@ -27,7 +27,6 @@ walkforward:
   scale_type: logstandard 
   clip: 0.1
   portfolios: True
-  snr: [100.0, 10.0, 2.0, 1.0, 0.5, 0.1, 0.01]
   #purge_days: 20
   #embargo_days: 20
 

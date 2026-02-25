@@ -111,7 +111,7 @@ def _make_input_shape_for_eval(cfg, X_sample: torch.Tensor | np.ndarray, state_d
         raise ValueError(f"Unknown model name: {cfg.model.name}")
 
 @torch.inference_mode()
-def _predict_batched(model, X, device=DEVICE, bs=8192):
+def _predict_batched(model, X, device=DEVICE, bs=65536):
     preds = []
     for i in range(0, len(X), bs):
         xb = torch.as_tensor(X[i:i+bs], dtype=torch.float32, device=device)
@@ -430,17 +430,15 @@ TRIAL = 'trial_search_best'
 
 def main():
     #names = {'exp_187_lstm_100_sgd_lstm_100_adam_lr': ['trial_20260127_215504']}
-    names = ['exp_213_lstm_100_sgd_seeds',
-             ]
+    names = ['exp_234_lstm_100_muon_snr']
 
-    #comb2 = list(itertools.combinations(names, 2))
-    #comb3 = list(itertools.combinations(all_names, 3))
-    #names = comb2
+
     done_paths = []
     for ITEM in names:
-        trials = os.listdir(Path(VOL_EXPERIMENTS_DIR) / ITEM)
-        trials = sorted(trials)
-        trials = [t for t in trials if 'visuals' not in t][-14:]
+        #trials = os.listdir(Path(VOL_EXPERIMENTS_DIR) / ITEM)
+        #trials = sorted(trials)
+        #trials = [t for t in trials if 'visuals' not in t]
+        trials = ['trial_20260220_123411']
         for i, trial in tqdm(enumerate(trials)):
             # Ensemble
             if isinstance(ITEM, (list, tuple)):
@@ -450,7 +448,7 @@ def main():
                 base_list = []
                 for member in ITEM:
                     # define varibales per model
-                    base_member  = Path(VOL_EXPERIMENTS_DIR) / member / TRIAL
+                    base_member  = Path(VOL_EXPERIMENTS_DIR) / member / trial
                     cfg_member = load_cfg(base_member)
                     
                     cfg_ensemble_list.append(cfg_member)
@@ -490,7 +488,7 @@ def main():
                 
                 print(f'\n\nAnalyzing {base}\n\n')
                 cfg = load_cfg(base)
-                wf = WFCVGenerator(config=cfg.walkforward)
+                wf = WFCVGenerator(config=cfg.walkforward, df_long=cfg.data.get('df_long', None))
 
             # 1) Stream folds once: compute variances + OLS metrics + NN calibration on the fly
             var_rows, ols_rows, lasso_rows, nn_calib_rows = [], [], [], []

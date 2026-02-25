@@ -190,12 +190,94 @@ def compute_variance(df:pd.DataFrame, annualize_var:bool=False):
 
     return df
 
+def gk_decile_portfolios(
+    df: pd.DataFrame,
+    window: int = 20,
+    num: int = 10
+) -> pd.DataFrame:
+    """
+    Build daily decile "representative portfolios" sorted by rolling variance of returns (per stock),
+    then compute the Garman-Klass daily variance estimate at the *portfolio* level.
+
+    Portfolio GK is computed by:
+      1) per-stock log ratios: log_hl = log(H/L), log_co = log(C/O)
+      2) aggregate within (date, decile) using mean (equal-weight) or weighted mean
+      3) plug aggregated log ratios into GK formula:
+           var = 0.5 * log_hl^2 - (2*ln(2)-1) * log_co^2
+
+    Parameters
+    ----------
+    df : DataFrame
+        Must contain columns: permno, date, ret, open, high, low, close
+        If weight_col is not None, must also contain that column.
+    window : int
+        Rolling window for sorting signal (variance of ret).
+
+    Returns
+    -------
+    port_df : DataFrame (long format)
+    """
+    x = df.copy()
+    min_periods = window
+
+    # --- hygiene ---
+    x["date"] = pd.to_datetime(x["date"]).dt.normalize()
+    x = x.sort_values(["permno", "date"])
+
+    # --- 1) sorting signal: rolling variance of ret per stock ---
+    x["rolling_var"] = (
+        x.groupby("permno", sort=False)["ret"]
+          .rolling(window=window, min_periods=min_periods)
+          .var()
+          .reset_index(level=0, drop=True)
+    )
+
+    # --- 2) daily deciles by rolling_var ---
+    mask = x["rolling_var"].notna()
+    r = x.loc[mask].groupby("date")["rolling_var"].rank(method="first")
+    n_day = x.loc[mask].groupby("date")["rolling_var"].transform("count")
+    x.loc[mask, "decile"] = (np.floor((r - 1) * num / n_day) + 1).astype("int64").clip(1, num)
+
+    # --- 3) compute per-stock GK inputs (log ratios) ---
+    # Require positive OHLC
+    valid = (
+        x["decile"].notna()
+        & (x["open"] > 0) & (x["high"] > 0) & (x["low"] > 0) & (x["close"] > 0)
+    )
+    x = x.loc[valid].copy()
+
+    x["log_hl"] = np.log(x["high"] / x["low"])
+    x["log_co"] = np.log(x["close"] / x["open"])
+
+    # --- 4) aggregate to portfolio level (date, decile) ---
+    port = (
+        x.groupby(["date", "decile"], as_index=False)
+            .agg(
+                log_hl=("log_hl", "mean"),
+                log_co=("log_co", "mean"),
+            )
+    )
+
+    # --- 5) portfolio GK variance ---
+    C2 = 2 * np.log(2) - 1
+    port["var"] = 0.5 * (port["log_hl"] ** 2) - C2 * (port["log_co"] ** 2)
+
+
+    # --- labels / long format ---
+    port["permno"] = port["decile"].astype(int)
+    port = port.sort_values(["date", "decile"]).reset_index(drop=True)
+
+
+    return port[['date', 'var', 'permno']]
+
 def preprocess(path:str=SP500_PATH, 
                nan_imputation:bool=True,
                ohlc_rets:bool=False,
-               variance:bool=True,
-               annualize_var:bool=False):
+               annualize_var:bool=False,
+               portfolios:bool=False
+               ):
     console_logger.debug('in preprocess')
+    
     df = import_data(path)
     # we dont need to refactor since we only look
     # at ratios for volatility.
@@ -206,7 +288,10 @@ def preprocess(path:str=SP500_PATH,
     if ohlc_rets:
         df = create_ohlc_returns(df)
     
-    if variance:
+    if portfolios > 0 :
+        console_logger.warning('Portfolios done')
+        df = gk_decile_portfolios(df, num=portfolios)
+    else:
         df = compute_variance(df, annualize_var)
 
     df = create_time_index(df)

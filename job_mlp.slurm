@@ -23,4 +23,11 @@ conda activate torch_h200_py312
 cd /orcd/home/002/corte911/code/finNN_code
 
 # === run your python script ===
-python -u src/run_experiments.py --config seed_runs/mlp_100_sgd_seeds_8.yaml
+python -u src/run_experiments.py --config mlp_snr.yaml --noise [0.1]
+python -u src/run_experiments.py --config mlp_snr.yaml --noise [0.25]
+python -u src/run_experiments.py --config mlp_snr.yaml --noise [0.5]
+python -u src/run_experiments.py --config mlp_snr.yaml --noise [0.75]
+python -u src/run_experiments.py --config mlp_snr.yaml --noise [1.25]
+python -u src/run_experiments.py --config mlp_snr.yaml --noise [1.5]
+python -u src/run_experiments.py --config mlp_snr.yaml --noise [1.75]
+python -u src/run_experiments.py --config mlp_snr.yaml --noise [2]

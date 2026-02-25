@@ -23,21 +23,6 @@ conda activate torch_h200_py312
 cd /orcd/home/002/corte911/code/finNN_code
 
 # === run your python script ===
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_0.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_1.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_2.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_3.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_4.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_5.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_6.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_7.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_8.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_9.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_10.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_11.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_12.yaml
-python -u src/run_experiments.py --config seed_runs/cnn_100_sgd_v2_seeds_13.yaml
-
-
-
-
+python -u src/run_experiments.py --config snr_runs/cnn_100_sgd.yaml
+python -u src/run_experiments.py --config snr_runs/cnn_100_muon.yaml
+python -u src/run_experiments.py --config snr_runs/cnn_100_adam.yaml

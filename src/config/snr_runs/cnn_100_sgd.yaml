@@ -1,0 +1,104 @@
+model:
+  name: simplecnn
+  hparams:
+    mlp_hidden_sizes:
+    - 512
+    - 256
+    mlp_activation:
+    - relu
+    - relu
+    dropout_rate: 0
+    lstm_hidden_sizes:
+    - 256
+    - 256
+    lstm_dropout: 0
+    bidirectional: false
+    readout: last
+    use_ln: false
+    conv_channels:
+    - 64
+    - 128
+    - 256
+    conv_activation:
+    - relu
+    - relu
+    - relu
+    kernel_size: 8
+    padding: 1
+    pool: adaptive_avg
+    pool_k: 16
+    use_bn: false
+    output_activation: linear
+    n_layers: 2
+  search: {}
+trainer:
+  hparams:
+    epochs: 20
+    batch_size: 512
+    torch_patience: 10
+    min_delta: 1e-10
+    optuna_patience: 3
+    loss: mse
+    metrics:
+    - mae
+    - mse
+    - dir_acc
+    - qlike
+    val_every: 1
+    optimizer_type: sgd
+    weight_decay: 0.003465158785532694
+    lr: 0.029985064531737
+    initialization: null
+  search:
+    weight_decay:
+      low: 1e-06
+      high: 1
+      log: false
+      type: float
+    lr:
+      low: 1e-05
+      high: 0.1
+      log: false
+      type: float
+walkforward:
+  target_col: pred_cnn_100_sgd
+  lookback: 0
+  ratio_train: 3
+  ratio_val: 1
+  ratio_test: 1
+  step: 1197
+  lags: 100
+  max_folds: null
+  min_folds: null
+  scale: false
+  annualize: true
+  portfolios: 0
+  noise:
+  - 0.1
+  - 0.5900000000000001
+  - 1.08
+  - 1.5700000000000003
+  - 2.06
+  - 2.5500000000000003
+  - 3.0400000000000005
+  - 3.5300000000000002
+  - 4.0200000000000005
+  - 4.51
+  - 5.0
+  scale_type: logstandard
+  clip: 0.1
+experiment:
+  name: cnn_100_sgd_snr
+  hyperparams_search: false
+  monitor: val_loss
+  mode: min
+  type: volatility
+  n_trials: 25
+  random_state: 1234
+  n_steps: null
+  merge_train_val: false
+  store_test_loss: true
+data:
+  df_path: null
+  df_master: null
+  df_long: preds_v2.parquet

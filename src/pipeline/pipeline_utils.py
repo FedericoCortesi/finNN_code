@@ -1,5 +1,11 @@
+from typing import List, Union
+
 import numpy as np
+import ast
+import ast
+from collections.abc import Iterable
 from sklearn.preprocessing import StandardScaler, RobustScaler
+
 
 
 def scale_split(
@@ -270,3 +276,75 @@ def scale_split(
         Xtr_val_s, ytr_val_s, Xte_merged_s, yte_merged_s,
         X_scaler, y_scaler, X_scaler_merged, y_scaler_merged
     )
+
+
+
+def to_float_list(x):
+    """
+    Normalize x into a list[float].
+
+    Accepts:
+      - float/int
+      - str like "0.1"
+      - str like "[0.1]" or "[0.1, 0.2]"
+      - list/tuple like [0.1] or ["0.1"] or ["[0.1]"]
+      - numpy scalars / arrays (basic handling)
+    """
+    # If it's a string, parse if it looks like a list/tuple; otherwise float it.
+    if isinstance(x, str):
+        s = x.strip()
+        if (s.startswith("[") and s.endswith("]")) or (s.startswith("(") and s.endswith(")")):
+            x = ast.literal_eval(s)  # now x is list/tuple
+        else:
+            return [float(s)]
+
+    # If it's a scalar number
+    if isinstance(x, (int, float)):
+        return [float(x)]
+
+    # If it's an iterable (list/tuple/numpy array/etc.), flatten one level
+    if isinstance(x, Iterable):
+        out = []
+        for item in x:
+            # item could itself be "[0.1]" or 0.1 etc.
+            out.extend(to_float_list(item))
+        return out
+
+    # Fallback
+    return [float(x)]
+
+
+def apply_variance_injection(arrays: List[np.ndarray], 
+                             variances: Union[float, List[float]]) -> List[np.ndarray]:
+    """
+    Expands dataset by stacking versions with specific Gaussian noise variances.
+    
+    Args:
+        arrays: List of input arrays.
+        variances: List of floats representing the variance (sigma^2) of the noise.
+                   Use 0.0 to include the original 'clean' data.
+    """
+    # Standardization
+    if not isinstance(variances, list):
+        variances = [variances]
+        
+    augmented_results = []
+
+    for arr in arrays:
+        pieces_to_stack = []
+
+        for var in to_float_list(variances):
+            var = float(var)
+            # Case A: Clean Data (Variance is 0)
+            if var <= 1e-9:  # Tolerance for float comparison
+                pieces_to_stack.append(arr.copy())
+            
+            # Case B: Noisy Data
+            else:
+                # scale argument in normal() takes standard deviation (sqrt(variance))
+                noise = np.random.normal(loc=0.0, scale=np.sqrt(var), size=arr.shape)
+                pieces_to_stack.append(arr + noise)
+                
+        augmented_results.append(np.concatenate(pieces_to_stack, axis=0))
+
+    return augmented_results

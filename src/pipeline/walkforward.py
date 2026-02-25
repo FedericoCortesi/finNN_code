@@ -11,7 +11,7 @@ from typing import Callable, Dict, Tuple, List, Optional
 
 from pipeline.preprocessing import preprocess
 from config.config_types import WFConfig
-from pipeline.pipeline_utils import scale_split
+from pipeline.pipeline_utils import scale_split, apply_variance_injection, to_float_list
 
 from utils.custom_formatter import setup_logger 
 from  utils.paths import SP500_PATH, DATA_DIR
@@ -45,7 +45,8 @@ class WFCVGenerator:
         self.id_col, self.time_col = id_col, time_col
         self.keep_id_col = keep_id_col
         self.target_col = self.config.target_col
-        
+        self.console_logger.debug(self.target_col)
+
         self.df = self._load_df(df_long)  # validated & trimmed
 
         # now safe to proceed
@@ -56,9 +57,9 @@ class WFCVGenerator:
     def _load_df(self, df_long) -> pd.DataFrame:
         if df_long is None:
             self.console_logger.debug(f'self.config.annualize: {self.config.annualize}')
-            df = preprocess(annualize_var=self.config.annualize)[[self.time_col, self.target_col, self.id_col]].copy()
+            df = preprocess(annualize_var=self.config.annualize, portfolios=self.config.portfolios)[[self.time_col, self.target_col, self.id_col]].copy()
         elif isinstance(df_long, str):
-            df = preprocess(path=f'{DATA_DIR}/df_long', annualize_var=self.config.annualize)[[self.time_col, self.target_col, self.id_col]].copy()
+            df = pd.read_parquet(f'{DATA_DIR}/{df_long}')[[self.time_col, self.target_col, self.id_col]].copy()
         elif isinstance(df_long, pd.DataFrame):
             df = df_long
             
@@ -103,12 +104,10 @@ class WFCVGenerator:
             folds_count += 1
         
         self.folds_count = folds_count
-        msg = f"self.folds_count is zero! Check walkforward paramters, make sure train end does not exceeed {self.T}." 
+        msg = f"self.folds_count is zero! Check walkforward parameters, make sure train end does not exceeed {self.T}. " 
         msg = msg + f"Right now train, val, and test sizes are: {self.config.T_train}, {self.config.T_val}, {self.config.T_test}." 
         assert self.folds_count != 0, msg 
         return result
-
-
 
 
     def _make_windows(self):
@@ -472,6 +471,7 @@ class WFCVGenerator:
                     Xtr_val, ytr_val, Xte_merged, yte_merged,
                     X_scaler, y_scaler, X_scaler_merged, y_scaler_merged
                 ) = result
+                
             else:
                 self.console_logger.debug('Not scaling')
                 # Create unscaled merged arrays
@@ -480,6 +480,31 @@ class WFCVGenerator:
                 Xte_merged = Xte.copy()
                 yte_merged = yte.copy()
                 X_scaler, y_scaler, X_scaler_merged, y_scaler_merged = None, None, None, None
+
+                self.config.noise = to_float_list(self.config.noise)
+                if len(self.config.noise) > 0:
+                    self.console_logger.info(f'Applying noise {self.config.noise}')
+
+                    Xtr, Xv, Xte, Xtr_val, Xte_merged = apply_variance_injection(
+                        [Xtr, Xv, Xte, Xtr_val, Xte_merged], 
+                        variances=self.config.noise)
+
+                    n_repeats = len(self.config.noise)
+                    
+                    # Helper to tile the targets (stacking them N times vertically)
+                    def repeat_targets(arr, n):
+                        return np.concatenate([arr] * n, axis=0)
+
+                    ytr = repeat_targets(ytr, n_repeats)
+                    yv  = repeat_targets(yv, n_repeats)
+                    yte = repeat_targets(yte, n_repeats)
+                    
+                    # Also update the merged versions
+                    ytr_val = repeat_targets(ytr_val, n_repeats)
+                    yte_merged = repeat_targets(yte_merged, n_repeats)
+                else:
+                    self.console_logger.info(f'Not applying noise {self.config.noise}')
+
 
             self.console_logger.debug(f'Generating fold: {fold}')
             self.console_logger.debug(f'Merged arrays shapes: Xtr_val={Xtr_val.shape}, ytr_val={ytr_val.shape}')

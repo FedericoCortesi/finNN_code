@@ -53,20 +53,21 @@ class TrainerConfig:
 class WFConfig:
     """Configuration for Walk-Forward Cross-Validation."""
 
-    target_col: str = "ret"          # target column for regression
-    lookback: int = 0                # Last N observations to include in the y vector 
-    ratio_train: int = 3             # x test
-    ratio_val: int = 1               # x test
-    ratio_test: int = 1              # base value = step
-    step: int = 251                  # trading days per 'year'
-    lags: int = 20                   # number of past days as features
-    max_folds: Optional[int] = None  # optional cap on folds
-    min_folds: Optional[int] = None  # optional floor on folds
-    scale: bool = False              # optional scale or not 
-    annualize: bool = False          # optional annualize 
-    scale_type: str = "standard"     # type of scaler (standard, robust)
-    clip: float = 0                  # Winsorization, this will be alpha and 
-                                     # the result will be [z_clip, z_(1-clip)] 
+    target_col: str = "ret"                                 # target column for regression
+    lookback: int = 0                                       # Last N observations to include in the y vector 
+    ratio_train: int = 3                                    # x test
+    ratio_val: int = 1                                      # x test
+    ratio_test: int = 1                                     # base value = step
+    step: int = 251                                         # trading days per 'year'
+    lags: int = 20                                          # number of past days as features
+    max_folds: Optional[int] = None                         # optional cap on folds
+    min_folds: Optional[int] = None                         # optional floor on folds
+    scale: bool = False                                     # optional scale or not 
+    annualize: bool = False                                 # optional annualize 
+    portfolios: int = 0                                     # optional create only portfolios 
+    noise: List[float] = field(default_factory=list)        # optional gaussian noise 
+    scale_type: str = "standard"                            # type of scaler (standard, robust)
+    clip: float = 0                                         # Winsorization, this will be alpha and the result will be [z_clip, z_(1-clip)] 
 
     def __post_init__(self):
         # Derived absolute lengths

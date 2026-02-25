@@ -1,4 +1,5 @@
 import argparse
+from copy import deepcopy
 from functools import partial
 import pandas as pd
 import numpy as np
@@ -24,28 +25,10 @@ from models import create_model
 import time
 
 
+# setup logger
+console_logger = setup_logger("Experiment", level="INFO")
 
-def main():
-    # -------- argparse setup --------
-    parser = argparse.ArgumentParser(description="Run a walk-forward training experiment.")
-    parser.add_argument("--config", type=str, default=str("default.yaml"),
-                        help="Path to YAML config file.")
-    parser.add_argument("--data", type=str, default=None,
-                        help="Optional dataset path to override config[data][df_path].")
-    parser.add_argument("--exp-name", type=str, default=None,
-                        help="Optional name to override config[experiment][name].")
-    args = parser.parse_args()
-
-    # setup logger
-    console_logger = setup_logger("Experiment", level="INFO")
-
-    # --- GPU check (PyTorch) ---
-    gpu_test()
-    console_logger.info("GPU check complete.")
-
-    # -------- load config --------
-    cfg = AppConfig.from_dict(f"{CONFIG_DIR}/{args.config}")
-
+def run_single_experiment(cfg:AppConfig, args):
     # set seed
     SEED = cfg.experiment.random_state
     SEED = SEED if SEED is not None else 42
@@ -204,6 +187,46 @@ def main():
                                   merge_train_val=merge_tr_val)
 
     console_logger.warning("Training completed!")
+
+
+
+
+def main():
+    # -------- argparse setup --------
+    parser = argparse.ArgumentParser(description="Run a walk-forward training experiment.")
+    parser.add_argument("--config", type=str, default=str("default.yaml"),
+                        help="Path to YAML config file.")
+    parser.add_argument("--data", type=str, default=None,
+                        help="Optional dataset path to override config[data][df_long].")
+    parser.add_argument("--noise", type=str, default=None,
+                        help="Optional dataset path to override config[data][df_long].")
+    parser.add_argument("--exp-name", type=str, default=None,
+                        help="Optional name to override config[experiment][name].")
+    args = parser.parse_args()
+
+    # --- GPU check (PyTorch) ---
+    gpu_test()
+    console_logger.info("GPU check complete.")
+
+    # -------- load config --------
+    cfg = AppConfig.from_dict(f"{CONFIG_DIR}/{args.config}")
+
+    if args.noise:
+        cfg.walkforward.noise = args.noise
+
+    input_noises = deepcopy(cfg.walkforward.noise)
+
+    if isinstance(input_noises, list):
+        if len(input_noises) == 0:
+            run_single_experiment(cfg, args)
+
+        for noise in input_noises:
+            cfg.walkforward.noise = noise
+
+            run_single_experiment(cfg, args)
+    else:
+        run_single_experiment(cfg, args)
+
 
 if __name__ == "__main__":
     main()

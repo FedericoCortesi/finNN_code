@@ -1,425 +1,295 @@
-# finNN_code: Financial Neural Network Training Pipeline
+# Financial Neural Network Training Pipeline
 
-A neural network training pipeline for financial time series prediction using walk-forward cross-validation. This repository implements a framework for training and evaluating machine learning models on financial data with proper temporal validation and hyperparameter optimization.
+A neural network training pipeline for financial time series prediction using walk-forward cross-validation. This framework trains and evaluates neural networks (MLP, CNN, LSTM, Transformer) on S&P 500 data with proper temporal validation and Optuna-based hyperparameter optimization.
 
-##  Quick Start — Run Experiments
-
-**To run experiments and generate forecasts:**
-
-Open and run the notebook at:
-```
-src/benchmarks/forecast.ipynb
-```
-
-This Jupyter notebook contains the complete experimental pipeline and will generate predictions on financial time series data.
+## 🚀 Quick Start
 
 ### Setup
-
-1. **Create a Python environment (Python >= 3.12):**
-
 ```bash
+# Create environment (Python >= 3.12)
 python -m venv .venv
 source .venv/bin/activate
-```
 
-2. **Install the package with dependencies:**
-
-```bash
+# Install package
 pip install -e .
 ```
 
-3. **Run the forecast notebook:**
-   - Open `src/benchmarks/forecast.ipynb` in Jupyter or VS Code
-   - Run all cells to execute the full pipeline
+### Run Experiments
+```bash
+# Interactive notebook (recommended for exploration)
+jupyter notebook src/benchmarks/forecast.ipynb
 
-## 🏗️ Project Structure
-
-```
-finNN_code/
-├── src/
-│   ├── benchmarks/
-│   │   └── forecast.ipynb           # ⭐ Main notebook — run experiments here
-│   ├── config/                      # Configuration files and types
-│   │   ├── config_types.py          # Pydantic models for config validation
-│   │   ├── default.yaml             # Production experiment settings
-│   │   ├── debug.yaml               # Quick debug configuration
-│   │   └── search_debug.yaml        # Hyperparameter search settings
-│   ├── data/                        # Data files and analysis
-│   │   ├── data_analysis.ipynb      # Exploratory data analysis
-│   │   ├── get_data.ipynb           # Data fetching and preprocessing
-│   │   ├── permnos_info.csv         # Stock permno metadata
-│   │   ├── permons_list.txt         # List of stock permnos
-│   │   └── sp500_daily_data.parquet # S&P 500 daily OHLCV data
-│   ├── hyperparams_search/          # Hyperparameter optimization (Optuna)
-│   │   └── search_utils.py          # Search space & trial management
-│   ├── models/                      # Neural network architectures
-│   │   └── mlp.py                   # Multi-layer perceptron model
-│   ├── pipeline/                    # Data processing & walk-forward logic
-│   │   ├── __init__.py
-│   │   ├── data_loader.py           # DataLoader wrappers
-│   │   ├── preprocessing.py         # Feature engineering & normalization
-│   │   └── walkforward.py           # Walk-forward cross-validation splits
-│   ├── training_routine/            # Trainer and metric computations
-│   │   ├── __init__.py
-│   │   ├── trainer.py               # Main training loop
-│   │   ├── metrics.py               # Loss functions & evaluation metrics
-│   │   └── callbacks.py             # Early stopping, checkpointing
-│   ├── price_prediction/            # Experiment outputs & results
-│   │   └── experiments/             # Timestamped experiment folders
-│   ├── utils/                       # Logging, GPU checks, helpers
-│   │   ├── __init__.py
-│   │   ├── gpu_test.py              # GPU availability checker
-│   │   ├── logger.py                # Logging configuration
-│   │   └── helpers.py               # Utility functions
-│   ├── volatility/                  # Volatility analysis
-│   │   └── volatility_analysis.py   # Volatility metrics & features
-│   ├── run_experiments.py           # CLI entry point for experiments
-│   └── __init__.py
-├── logs/                            # SLURM job logs
-├── train_job.slurm                  # Example SLURM submission script
-├── pyproject.toml                   # Project metadata & dependencies
-├── ssh_guide.md                     # Remote machine setup guide
-└── README.md                        # This file
+# Or command line (recommended for production)
+python src/run_experiments.py --config src/config/default.yaml
 ```
 
 ---
 
-## 📁 Detailed File Documentation
+## 📁 Project Structure
 
-### **Configuration** (`src/config/`)
-
-**`config_types.py`**
-- Pydantic data classes defining the schema for all configuration parameters
-- Ensures type safety and validation when loading YAML configs
-- Usage: Automatically loaded by the configuration manager
-
-**`default.yaml`**
-- Production-ready experiment configuration
-- Contains full dataset, larger batch sizes, extended training
-- Use this for final experiments and benchmarks
-
-**`debug.yaml`**
-- Lightweight configuration for quick iteration
-- Smaller dataset, fewer epochs, smaller batch sizes
-- Use this during development to test code changes quickly
-
-**`search_debug.yaml`**
-- Configuration for Optuna hyperparameter search
-- Defines search space, number of trials, and optimization objectives
-- Use this to find optimal hyperparameters
-
-### **Data** (`src/data/`)
-
-**`get_data.ipynb`**
-- Fetches raw financial data from external sources
-- Cleans, validates, and preprocesses OHLCV (Open, High, Low, Close, Volume) data
-- Outputs: `sp500_daily_data.parquet` with standardized format
-
-**`data_analysis.ipynb`**
-- Exploratory data analysis and visualization
-- Computes statistics, correlations, and temporal patterns
-- Generates plots and summary reports
-
-**`sp500_daily_data.parquet`**
-- Main dataset: S&P 500 daily OHLCV price data
-- Format: Parquet (columnar, efficient compression)
-- Used by all training pipelines
-
-**`permnos_info.csv`**
-- Metadata for stock tickers (permno = permanent number ID)
-- Columns: permno, ticker, company_name, sector, etc.
-- Used for filtering and tracking stocks
-
-### **Models** (`src/models/`)
-
-**`mlp.py`**
-- Multi-layer perceptron (feedforward neural network)
-- Configurable hidden layers, activation functions, dropout
-- Usage example:
-```python
-from src.models.mlp import MLP
-model = MLP(input_dim=50, hidden_dims=[128, 64], output_dim=1)
+```
+finNN_code/
+├── src/
+│   ├── benchmarks/              # Evaluation & result visualization
+│   │   └── forecast.ipynb       # ⭐ Main experiment notebook
+│   ├── config/                  # Configuration & experiment definitions
+│   │   ├── config_types.py      # Pydantic schema validation
+│   │   ├── yaml_configs/        # Pre-configured experiments
+│   │   ├── seed_runs/           # Multi-seed configurations
+│   │   └── snr_runs/            # Signal-to-noise ratio experiments
+│   ├── data/                    # Datasets & data processing
+│   │   ├── sp500_daily_data.parquet
+│   │   ├── get_data.ipynb
+│   │   └── data_analysis.ipynb
+│   ├── financial_tests/         # Portfolio analysis & empirical tests
+│   ├── hyperparams_search/      # Optuna-based hyperparameter optimization
+│   ├── models/                  # Neural network architectures
+│   │   ├── mlp.py               # Multi-layer perceptron
+│   │   ├── lstm.py              # LSTM with stacked layers
+│   │   ├── simplecnn.py         # 1D Convolutional network
+│   │   └── transformer.py       # Transformer with attention
+│   ├── pipeline/                # Data processing & walk-forward CV
+│   │   ├── walkforward.py       # Temporal cross-validation splits
+│   │   ├── preprocessing.py     # Feature engineering & scaling
+│   │   └── pipeline_utils.py    # Utilities (scaling, noise injection)
+│   ├── training_routine/        # Training loop & metrics
+│   │   ├── trainer.py           # GPU-optimized training
+│   │   ├── metrics.py           # Loss & evaluation metrics
+│   │   └── training_utils.py    # Early stopping, checkpointing
+│   ├── utils/                   # Logging, paths, GPU management
+│   │   ├── logging_utils.py     # Experiment tracking & results
+│   │   ├── custom_formatter.py  # Colored console logging
+│   │   ├── paths.py             # Centralized path definitions
+│   │   ├── gpu_test.py          # GPU diagnostics
+│   │   └── random_setup.py      # Reproducibility settings
+│   ├── price_prediction/        # Price prediction experiments
+│   ├── volatility/              # Volatility prediction experiments
+│   └── run_experiments.py       # CLI entry point
+├── logs/                        # SLURM job logs
+├── train_job.slurm              # HPC submission script
+├── pyproject.toml               # Dependencies
+├── ssh_guide.md                 # Remote setup guide
+└── README.md                    # This file
 ```
 
-### **Pipeline** (`src/pipeline/`)
+**📖 For detailed documentation, read README files in each `src/*/` directory:**
+- **`src/benchmarks/README.md`** – Benchmarking, evaluation, and result visualization
+- **`src/config/README.md`** – Configuration system, YAML schemas, and experiment setup
+- **`src/financial_tests/README.md`** – Portfolio construction and empirical analysis
+- **`src/hyperparams_search/README.md`** – Optuna hyperparameter optimization and search strategies
+- **`src/models/README.md`** – Neural network architectures (MLP, LSTM, CNN, Transformer)
+- **`src/pipeline/README.md`** – Walk-forward validation, data preprocessing, and scaling
+- **`src/training_routine/README.md`** – Training loop, optimizers, and GPU optimization
+- **`src/utils/README.md`** – Logging, experiment tracking, paths, and utilities
 
-**`preprocessing.py`**
-- Feature engineering (technical indicators: moving averages, RSI, etc.)
-- Normalization/scaling using StandardScaler or MinMaxScaler
-- Missing value handling and outlier detection
+---
 
-**`walkforward.py`**
-- Implements walk-forward (rolling) cross-validation splits
-- Prevents look-ahead bias by ensuring train < validation < test
-- Returns temporal split indices for each fold
+## 🏗️ Architecture Overview
 
-**`data_loader.py`**
-- PyTorch DataLoader wrappers
-- Handles batching, shuffling, and data feeding during training
-- Supports different sampling strategies
+### Four Neural Network Models
 
-Usage example:
-```python
-from src.pipeline.walkforward import WalkForwardSplitter
-splitter = WalkForwardSplitter(n_splits=5, train_size=0.6, val_size=0.2)
-for train_idx, val_idx, test_idx in splitter.split(data):
-    train_data = data[train_idx]
-    val_data = data[val_idx]
-    test_data = data[test_idx]
+| Model | Type | Best For |
+|-------|------|----------|
+| **MLP** | Feedforward | Fast baseline, parameter search |
+| **CNN** | 1D Convolution | Local temporal patterns, efficiency |
+| **LSTM** | Recurrent | Long-term dependencies, sequences |
+| **Transformer** | Attention | Full context, parallel computation |
+
+**See `src/models/README.md` for architecture specifications and hyperparameters.**
+
+### Three Optimizers
+
+- **Adam** – Adaptive learning rates (default, fast)
+- **SGD** – Classical with momentum option
+- **Muon** – Second-order approximation (often best performance)
+
+### Walk-Forward Cross-Validation
+
+Temporal cross-validation preventing look-ahead bias:
+```
+Fold 0: Train (t=0-753) → Val (t=754-1004) → Test (t=1005-1255)
+Fold 1: Train (t=252-1004) → Val (t=1005-1255) → Test (t=1256-1506)
+Fold 2: Train (t=504-1255) → Val (t=1256-1506) → Test (t=1507-1757)
+...
 ```
 
-### **Training Routine** (`src/training_routine/`)
-
-**`trainer.py`**
-- Main training loop: forward pass, loss computation, backward pass, optimization
-- Handles device placement (CPU/GPU), mixed precision training
-- Implements epoch-based training with validation checks
-
-**`metrics.py`**
-- Loss functions: MSE, MAE, Huber loss, etc.
-- Evaluation metrics: RMSE, MAPE, Sharpe ratio, etc.
-- Computes financial-specific metrics (directional accuracy, profit/loss)
-
-**`callbacks.py`**
-- Early stopping: stops training if validation loss plateaus
-- Model checkpointing: saves best model state
-- Learning rate scheduling
-
-Usage example:
-```python
-from src.training_routine.trainer import Trainer
-trainer = Trainer(model, optimizer, loss_fn, device='cuda')
-trainer.train(train_loader, val_loader, epochs=100)
-best_model = trainer.best_model
-```
-
-### **Hyperparameter Search** (`src/hyperparams_search/`)
-
-**`search_utils.py`**
-- Defines Optuna search space (learning rate, hidden dims, dropout, etc.)
-- Objective function for optimization
-- Trial management and result aggregation
-
-Usage:
-```bash
-python src/run_experiments.py --config src/config/search_debug.yaml
-```
-
-### **Utilities** (`src/utils/`)
-
-**`gpu_test.py`**
-- Detects CUDA availability and prints GPU info
-- Useful for debugging device placement issues
-
-**`logger.py`**
-- Configures logging for console and file output
-- Sets log levels and formatters
-
-**`helpers.py`**
-- Common utility functions (path handling, file I/O, etc.)
-
-### **Volatility** (`src/volatility/`)
-
-**`volatility_analysis.py`**
-- Computes rolling volatility metrics
-- Generates volatility-based features for the model
-- Useful for risk-adjusted analysis
+**See `src/pipeline/README.md` for detailed walk-forward mechanics.**
 
 ---
 
 ## ⚙️ Configuration System
 
-Experiment settings are defined in YAML files under `src/config/`:
+Experiments defined in YAML under `src/config/yaml_configs/`:
 
-- **`default.yaml`** — Production experiment configuration
-- **`debug.yaml`** — Quick debug runs with smaller datasets
-- **`search_debug.yaml`** — Hyperparameter search configuration
-
-Each config defines:
 ```yaml
-experiment:
-  name: "experiment_name"
-  description: "what this experiment does"
-
-data:
-  source: "sp500_daily_data.parquet"
-  lookback_window: 50  # days of history
-  target_horizon: 1    # days ahead to predict
-
 model:
-  type: "mlp"
-  input_dim: 50
-  hidden_dims: [128, 64]
-  output_dim: 1
-  dropout: 0.2
+  name: lstm
+  hparams:
+    lstm_hidden_sizes: [256, 128]
+    lstm_dropout: 0.1
+    bidirectional: false
 
 trainer:
-  epochs: 100
-  batch_size: 32
-  learning_rate: 0.001
-  optimizer: "adam"
+  hparams:
+    epochs: 100
+    batch_size: 512
+    optimizer_type: muon
+    lr: 0.001
+    weight_decay: 0.0001
 
 walkforward:
-  n_splits: 5
-  train_size: 0.6
-  val_size: 0.2
-  test_size: 0.2
+  lags: 20              # Feature window length
+  ratio_train: 3        # Relative duration (train:val:test)
+  ratio_val: 1
+  ratio_test: 1
+  step: 251             # Trading days per period
+  scale: true
+  scale_type: standard
 ```
 
-### Walk-Forward Cross-Validation
+**Configuration Options:**
+- `yaml_configs/` – Pre-configured architecture + optimizer combinations
+- `seed_runs/` – 14 random seeds per config for robustness testing
+- `snr_runs/` – Signal-to-noise ratio experiments
 
-The pipeline uses rolling (walk-forward) windows to avoid look-ahead bias:
-- Trains on past data
-- Validates on intermediate periods
-- Tests on future intervals
-- Repeats across multiple overlapping time windows
+**See `src/config/README.md` for full schema and configuration details.**
 
 ---
 
 ## 📊 Running Experiments
 
-### **Option 1: Jupyter Notebook (Recommended for Exploration)**
-
+### Interactive Notebook
 ```bash
 jupyter notebook src/benchmarks/forecast.ipynb
-# Or in VS Code: Open notebook and run cells
 ```
+- Load data, train models, generate predictions, visualize results
+- Best for exploration and debugging
 
-Advantages:
-- Interactive debugging
-- Visualize results inline
-- Easy hyperparameter tweaking
-
-### **Option 2: Command Line (Recommended for Production)**
-
+### Command Line
 ```bash
-# Quick debug run
+# Debug run (fast, small dataset, 1 fold)
 python src/run_experiments.py --config src/config/debug.yaml
 
-# Full experiment
+# Full experiment (complete dataset, all folds)
 python src/run_experiments.py --config src/config/default.yaml
 
-# Hyperparameter search
+# Hyperparameter search (Optuna optimization)
 python src/run_experiments.py --config src/config/search_debug.yaml
 ```
 
-Output structure:
+### Output Structure
 ```
-src/price_prediction/experiments/
-└── YYYYMMDD_HHMMSS_experiment_name/
-    ├── config_snapshot.json          # Exact config used
-    ├── results.csv                   # Aggregated metrics across all folds
-    ├── trial_0/
-    │   ├── fold_0/
-    │   │   ├── model_best.pth        # Best model checkpoint
-    │   │   ├── training_log.json     # Loss/metric history
-    │   │   └── predictions.csv       # Predictions on test set
-    │   └── fold_1/
-    │       └── ...
-    └── trial_1/
+src/volatility/experiments/
+└── exp_035_lstm_100_muon/           # Experiment ID + name
+    ├── trial_search_best/           # Best trial from search
+    │   ├── results.csv              # Metrics per fold
+    │   ├── config_snapshot.json     # Config + environment
+    │   ├── fold_000/
+    │   │   ├── model_best.pt        # Best checkpoint
+    │   │   ├── training_history.json
+    │   │   └── predictions.csv
+    │   └── fold_001/, fold_002/, ...
+    └── trial_20240304_143022/       # Named trials
         └── ...
 ```
 
+**See `src/training_routine/README.md` for training details and metrics.**
+
 ---
 
-## 🖥️ GPU Support
+## 🔬 Analysis & Evaluation
 
-### Verify GPU Availability
+### Benchmarking
+Compare models against OLS and LASSO baselines:
 ```bash
-python src/utils/gpu_test.py
+jupyter notebook src/benchmarks/compare_runs.ipynb
 ```
 
-Expected output:
-```
-GPU available: True
-Device: NVIDIA A100
-CUDA Version: 12.0
+### Portfolio Analysis
+Construct volatility-managed portfolios and compute Sharpe ratios, returns, turnover:
+```bash
+python src/financial_tests/empiricals.py
 ```
 
-The trainer automatically uses GPU if available, falls back to CPU otherwise.
+**See `src/benchmarks/README.md` and `src/financial_tests/README.md` for details.**
 
 ---
 
-## 🚀 Running on HPC Clusters (SLURM)
+## 🖥️ GPU & HPC
 
-### Basic SLURM Submission
+### Verify GPU
+```bash
+python -c "from utils.gpu_test import gpu_test; gpu_test()"
+```
 
+### SLURM Submission
 ```bash
 sbatch train_job.slurm
+squeue -u $USER
+tail -f logs/slurm_*.err
 ```
 
-### Monitor Job
-
-```bash
-squeue -u $USER              # List your jobs
-scancel <job_id>             # Cancel a job
-tail -f logs/slurm_<job_id>.err  # Watch logs
-```
-
-### Customize `train_job.slurm`
-
-```bash
-# Edit resource requests
-#SBATCH --gpus=1              # Number of GPUs
-#SBATCH --time=04:00:00       # Max runtime (HH:MM:SS)
-#SBATCH --mem=32G             # Memory
-#SBATCH --cpus-per-task=8     # CPU cores
-```
+**See `src/utils/README.md` for GPU diagnostics and troubleshooting.**
 
 ---
 
-## 🔧 Development & Debugging
+## 🔧 Development
 
-### Quick Iteration Workflow
-
-1. **Make code changes** to `src/models/`, `src/pipeline/`, etc.
-2. **Use `debug.yaml`** for fast testing (smaller dataset, fewer epochs)
-3. **Run from command line**:
-   ```bash
-   python src/run_experiments.py --config src/config/debug.yaml
-   ```
-4. **Check logs**:
-   ```bash
-   tail -f logs/training_<timestamp>.log
-   ```
-
-### Interactive Development
-
-1. **Start Jupyter**:
-   ```bash
-   jupyter notebook src/
-   ```
-2. **Open `src/debug.ipynb`** for iterative development
-3. **Import and test modules**:
-   ```python
-   from src.models.mlp import MLP
-   from src.pipeline.preprocessing import FeatureEngineer
-   model = MLP(input_dim=50, hidden_dims=[64], output_dim=1)
-   ```
+### Quick Iteration
+1. Edit code in `src/models/`, `src/pipeline/`, etc.
+2. Use `debug.yaml` for fast testing (1 fold, fewer epochs)
+3. Run: `python src/run_experiments.py --config src/config/debug.yaml`
 
 ### Common Issues
 
 | Issue | Solution |
 |-------|----------|
-| `ModuleNotFoundError` | Run `pip install -e .` to install package in editable mode |
-| CUDA out of memory | Reduce `batch_size` in config or use `debug.yaml` |
-| GPU not detected | Run `python src/utils/gpu_test.py` to diagnose |
-| Data file not found | Ensure `sp500_daily_data.parquet` exists in `src/data/` |
+| `ModuleNotFoundError` | `pip install -e .` |
+| CUDA out of memory | Reduce `batch_size` in config |
+| GPU not found | `python -c "from utils.gpu_test import gpu_test; gpu_test()"` |
+| Data missing | Ensure `sp500_daily_data.parquet` exists |
+
+**See `src/utils/README.md` for logging, reproducibility, and paths.**
+
+---
+
+## 📚 Key Concepts
+
+### Walk-Forward Validation
+Prevents information leakage by using only past data for training. Each fold's test set is always in the future relative to training. Essential for time series.
+
+**Learn more:** `src/pipeline/README.md`
+
+### Hyperparameter Search
+Optuna-based optimization with MedianPruner for early stopping. Samples from search specifications in config, evaluates on validation set, automatically saves best trial.
+
+**Learn more:** `src/hyperparams_search/README.md`
+
+### Experiment Logging
+Automatic folder structure with config snapshots, results CSV, and metadata JSONL. All metrics logged for easy aggregation and analysis.
+
+**Learn more:** `src/utils/README.md`
+
+### Training Features
+- GPU-optimized with mixed precision (bfloat16)
+- Early stopping with checkpoint restoration
+- Transfer learning via model initialization
+- Per-layer hyperparameter search
+
+**Learn more:** `src/training_routine/README.md`
 
 ---
 
 ## 📦 Dependencies
 
-Key packages (see `pyproject.toml`):
-- **PyTorch** — Neural networks & training
-- **TensorFlow** — Alternative deep learning framework
-- **scikit-learn** — Machine learning utilities, preprocessing
-- **Optuna** — Hyperparameter optimization
-- **pandas, numpy** — Data processing & numerical computing
-- **statsmodels** — Statistical modeling
-- **tqdm** — Progress bars
-- **PyYAML** — Configuration file parsing
-- **matplotlib, seaborn** — Visualization
+Key packages in `pyproject.toml`:
+- **PyTorch** – Neural networks & GPU training
+- **Optuna** – Hyperparameter optimization
+- **scikit-learn** – Preprocessing, baseline models
+- **pandas, numpy** – Data manipulation
+- **statsmodels** – Statistical tests & models
+- **PyYAML** – Configuration parsing
+- **matplotlib, seaborn** – Visualization
 
 ---
 
@@ -427,80 +297,51 @@ Key packages (see `pyproject.toml`):
 
 ### 1. Data Preparation
 ```bash
-# Fetch and explore data
 jupyter notebook src/data/get_data.ipynb
 jupyter notebook src/data/data_analysis.ipynb
 ```
 
 ### 2. Model Development
 ```bash
-# Test model in debug mode
 python src/run_experiments.py --config src/config/debug.yaml
 ```
 
 ### 3. Hyperparameter Tuning
 ```bash
-# Run Optuna search
 python src/run_experiments.py --config src/config/search_debug.yaml
-# Update best hyperparameters in default.yaml
 ```
 
-### 4. Final Evaluation
+### 4. Final Training
 ```bash
-# Run full experiment
 python src/run_experiments.py --config src/config/default.yaml
 ```
 
-### 5. Analysis & Reporting
+### 5. Analysis & Comparison
 ```bash
-# Results saved to src/price_prediction/experiments/
-# Load and visualize results in Jupyter
-jupyter notebook src/benchmarks/forecast.ipynb
+jupyter notebook src/benchmarks/compare_runs.ipynb
+python src/financial_tests/empiricals.py
 ```
 
 ---
 
-## 📝 Adding Your Own Models
+## 📝 Adding Models
 
-1. **Create a new model file** in `src/models/`:
-   ```python
-   # src/models/lstm.py
-   import torch.nn as nn
-   
-   class LSTM(nn.Module):
-       def __init__(self, input_dim, hidden_dim, num_layers, output_dim):
-           super().__init__()
-           self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
-           self.fc = nn.Linear(hidden_dim, output_dim)
-       
-       def forward(self, x):
-           out, _ = self.lstm(x)
-           return self.fc(out[:, -1, :])
-   ```
-
-2. **Register in config** (`src/config/default.yaml`):
-   ```yaml
-   model:
-     type: "lstm"
-     input_dim: 50
-     hidden_dim: 64
-     num_layers: 2
-     output_dim: 1
-   ```
-
-3. **Update config_types.py** to include your model config
+1. Create in `src/models/my_model.py`
+2. Use `@register_model("model_name")` decorator
+3. Update `config_types.py` with model config
+4. Add to YAML configs
 
 ---
 
 ## 🤝 Contributing
 
-1. Create a new branch: `git checkout -b feature/my-feature`
-2. Make changes following the project structure
-3. Test with `debug.yaml`: `python src/run_experiments.py --config src/config/debug.yaml`
-4. Commit and push: `git push origin feature/my-feature`
+1. Branch: `git checkout -b feature/my-feature`
+2. Code in appropriate `src/*/` directory
+3. Test: `python src/run_experiments.py --config src/config/debug.yaml`
+4. Commit & push
 
 ---
 
-**Happy experimenting!** 🚀
+**For detailed documentation on any component, read the README in its `src/*/` directory.** 🚀
 
-For setup on remote machines, see `ssh_guide.md`.
+For remote machine setup, see `ssh_guide.md`.
